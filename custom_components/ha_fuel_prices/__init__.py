@@ -1,28 +1,21 @@
-async def fetch_data():
-    """Função para buscar e processar os dados da planilha."""
-    data = {}
-    try:
-        # Caminho ou URL da planilha
-        file_path = "/mnt/data/resumo_semanal_lpc_2025-01-12_2025-01-18.xlsx"
-        
-        # Lendo a planilha
-        df = pd.read_excel(file_path)
+import asyncio
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
 
-        # Garantindo que as colunas necessárias existem
-        required_columns = ["MUNICÍPIO", "PRODUTO", "PREÇO MÉDIO REVENDA"]
-        if not all(col in df.columns for col in required_columns):
-            raise ValueError(f"Colunas obrigatórias não encontradas na planilha: {df.columns}")
+DOMAIN = "precos_combustiveis_anp"
 
-        # Filtrando os dados para Santa Catarina
-        df_sc = df[df["MUNICÍPIO"] == "SANTA CATARINA"]
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Configuração inicial para Config Entry."""
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][entry.entry_id] = entry.data
 
-        # Calculando o preço médio para cada tipo de combustível
-        for fuel_type in df_sc["PRODUTO"].unique():
-            fuel_data = df_sc[df_sc["PRODUTO"] == fuel_type]
-            avg_price = fuel_data["PREÇO MÉDIO REVENDA"].mean()
-            data[fuel_type] = round(avg_price, 2)  # Arredondar para 2 casas decimais
+    # Carrega a plataforma de sensores
+    hass.config_entries.async_setup_platforms(entry, ["sensor"])
+    return True
 
-    except Exception as e:
-        _LOGGER.error(f"Erro ao processar dados da planilha: {e}")
-
-    return data
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Remove uma Config Entry da integração."""
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, ["sensor"])
+    if unload_ok:
+        hass.data[DOMAIN].pop(entry.entry_id)
+    return unload_ok
