@@ -1,32 +1,40 @@
-from homeassistant.helpers.entity import Entity
+from homeassistant.components.sensor import SensorEntity
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN
+
+FUEL_TYPES = [
+    "ETANOL HIDRATADO",
+    "GASOLINA ADITIVADA",
+    "GASOLINA COMUM",
+    "GLP",
+    "GNV",
+    "OLEO DIESEL",
+    "OLEO DIESEL S10",
+]
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     coordinator = hass.data[DOMAIN][config_entry.entry_id]
-    sensors = []
 
-    for fuel, price in coordinator.data.items():
-        sensors.append(FuelPriceSensor(fuel, price, coordinator))
+    sensors = [
+        FuelPriceSensor(coordinator, fuel_type)
+        for fuel_type in FUEL_TYPES
+    ]
 
-    async_add_entities(sensors)
+    async_add_entities(sensors, update_before_add=True)
 
-class FuelPriceSensor(Entity):
-    def __init__(self, name, price, coordinator):
-        self._name = f"Preço {name}"
-        self._state = price
-        self._coordinator = coordinator
-
-    @property
-    def name(self):
-        return self._name
+class FuelPriceSensor(CoordinatorEntity, SensorEntity):
+    def __init__(self, coordinator, fuel_type):
+        super().__init__(coordinator)
+        self._fuel_type = fuel_type
+        self._attr_name = f"Preço Médio {fuel_type}"
+        self._attr_unique_id = f"fuel_price_{fuel_type.replace(' ', '_').lower()}"
 
     @property
-    def state(self):
-        return self._state
+    def native_value(self):
+        """Return the current fuel price."""
+        return self.coordinator.data.get(self._fuel_type)
 
     @property
     def unit_of_measurement(self):
-        return "R$"
-
-    async def async_update(self):
-        await self._coordinator.async_request_refresh()
+        """Return the unit of measurement."""
+        return "R$/L"

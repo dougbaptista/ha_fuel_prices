@@ -1,6 +1,6 @@
 {
   "domain": "ha_fuel_prices",
-  "name": "Fuel Prices (ANP)",
+  "name": "Preços de Combustíveis (ANP)",
   "version": "1.0.0",
   "documentation": "https://github.com/dougbaptista/ha_fuel_prices",
   "dependencies": [],
