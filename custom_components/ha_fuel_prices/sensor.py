@@ -1,45 +1,84 @@
+import pandas as pd
+import requests
+from bs4 import BeautifulSoup
 from homeassistant.components.sensor import SensorEntity
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from .const import DOMAIN
 
-FUEL_TYPES = [
-    "ETANOL HIDRATADO",
-    "GASOLINA ADITIVADA",
-    "GASOLINA COMUM",
+DOMAIN = "precos_combustiveis_anp"
+BASE_URL = "https://www.gov.br/anp/pt-br/assuntos/precos-e-defesa-da-concorrencia/precos/levantamento-de-precos-de-combustiveis-ultimas-semanas-pesquisadas"
+
+SENSOR_TYPES = [
+    "Etanol Hidratado",
+    "Gasolina Aditivada",
+    "Gasolina Comum",
     "GLP",
     "GNV",
-    "OLEO DIESEL",
-    "OLEO DIESEL S10",
+    "Óleo Diesel",
+    "Óleo Diesel S10",
 ]
 
-async def async_setup_entry(hass, config_entry, async_add_entities):
-    coordinator = hass.data[DOMAIN][config_entry.entry_id]
-
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
+    """Configura os sensores."""
+    data = await hass.async_add_executor_job(fetch_latest_data)
     sensors = [
-        FuelPriceSensor(coordinator, fuel_type)
-        for fuel_type in FUEL_TYPES
+        FuelPriceSensor(data, fuel_type)
+        for fuel_type in SENSOR_TYPES
     ]
+    async_add_entities(sensors, True)
 
-    async_add_entities(sensors, update_before_add=True)
+def fetch_latest_data():
+    """Busca o último arquivo de preços de combustíveis no site da ANP e retorna os dados processados."""
+    try:
+        # Acessa a página da ANP
+        response = requests.get(BASE_URL)
+        response.raise_for_status()
 
-class FuelPriceSensor(CoordinatorEntity, SensorEntity):
-    def __init__(self, coordinator, fuel_type):
-        super().__init__(coordinator)
+        # Analisa o HTML para encontrar o link mais recente
+        soup = BeautifulSoup(response.text, "html.parser")
+        links = soup.find_all("a", string=lambda text: "Preços médios semanais" in text)
+        if not links:
+            raise ValueError("Nenhum link encontrado para os preços médios semanais.")
+
+        # Pega o último link disponível
+        latest_link = links[0]["href"]
+        file_url = latest_link if latest_link.startswith("http") else f"https://www.gov.br{latest_link}"
+
+        # Baixa o arquivo Excel
+        excel_response = requests.get(file_url)
+        excel_response.raise_for_status()
+
+        # Lê o arquivo Excel
+        df = pd.read_excel(excel_response.content)
+
+        # Filtra os dados para Santa Catarina e retorna os preços médios
+        sc_data = df[df["MUNICÍPIO"] == "SANTA CATARINA"]
+        prices = {row["PRODUTO"]: row["PREÇO MÉDIO REVENDA"] for _, row in sc_data.iterrows()}
+        return prices
+    except Exception as e:
+        # Retorna dados vazios em caso de erro
+        return {fuel: None for fuel in SENSOR_TYPES}
+
+class FuelPriceSensor(SensorEntity):
+    """Sensor para preços de combustíveis."""
+
+    def __init__(self, data, fuel_type):
+        """Inicializa o sensor."""
         self._fuel_type = fuel_type
-        self._attr_name = f"Preço Médio {fuel_type}"
-        self._attr_unique_id = f"fuel_price_{fuel_type.replace(' ', '_').lower()}"
+        self._data = data
 
     @property
-    def native_value(self):
-        """Return the current fuel price."""
-        value = self.coordinator.data.get(self._fuel_type)
-        if value is None:
-            _LOGGER.debug(f"Dados para {self._fuel_type} não encontrados. Dados disponíveis: {self.coordinator.data}")
-        return value
-        
+    def name(self):
+        """Nome do sensor."""
+        return f"Preço {self._fuel_type} (SC)"
+
+    @property
+    def state(self):
+        """Retorna o preço do combustível."""
+        return self._data.get(self._fuel_type)
 
     @property
     def unit_of_measurement(self):
-        """Return the unit of measurement."""
+        """Unidade de medida do preço."""
         return "R$/L"
-

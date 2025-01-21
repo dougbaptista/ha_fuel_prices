@@ -1,11 +1,9 @@
 {
-  "domain": "ha_fuel_prices",
+  "domain": "precos_combustiveis_anp",
   "name": "Preços de Combustíveis (ANP)",
   "version": "1.0.0",
   "documentation": "https://github.com/dougbaptista/ha_fuel_prices",
+  "requirements": ["pandas"],
   "dependencies": [],
-  "codeowners": ["@dougbaptista"],
-  "requirements": ["pandas", "beautifulsoup4"],
-  "iot_class": "cloud_polling",
-  "config_flow": true
+  "codeowners": ["@dougbaptista"]
 }
