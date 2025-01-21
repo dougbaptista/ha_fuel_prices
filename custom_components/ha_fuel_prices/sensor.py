@@ -32,9 +32,14 @@ class FuelPriceSensor(CoordinatorEntity, SensorEntity):
     @property
     def native_value(self):
         """Return the current fuel price."""
-        return self.coordinator.data.get(self._fuel_type)
+        value = self.coordinator.data.get(self._fuel_type)
+        if value is None:
+            _LOGGER.debug(f"Dados para {self._fuel_type} não encontrados. Dados disponíveis: {self.coordinator.data}")
+        return value
+        
 
     @property
     def unit_of_measurement(self):
         """Return the unit of measurement."""
         return "R$/L"
+
