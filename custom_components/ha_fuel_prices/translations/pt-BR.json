@@ -1,0 +1,12 @@
+{
+  "title": "Preços de Combustíveis",
+  "step": {
+    "user": {
+      "title": "Configurar Fuel Prices",
+      "description": "Selecione o estado para acompanhar os preços.",
+      "data": {
+        "state": "Estado"
+      }
+    }
+  }
+}

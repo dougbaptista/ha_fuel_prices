@@ -1,0 +1,11 @@
+{
+  "domain": "ha_fuel_prices",
+  "name": "Fuel Prices (ANP)",
+  "version": "1.0.0",
+  "documentation": "https://github.com/dougbaptista/ha_fuel_prices",
+  "dependencies": [],
+  "codeowners": ["@dougbaptista"],
+  "requirements": ["pandas", "beautifulsoup4"],
+  "iot_class": "cloud_polling",
+  "config_flow": true
+}
