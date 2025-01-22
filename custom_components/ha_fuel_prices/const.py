@@ -1,1 +1,1 @@
-DOMAIN = "ha_fuel_prices"
+DOMAIN = "precos_combustiveis_anp"
