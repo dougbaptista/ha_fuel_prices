@@ -1,9 +1,10 @@
 {
-  "domain": "precos_combustiveis_anp",
+  "domain": "ha_fuel_prices",
   "name": "Preços de Combustíveis (ANP)",
   "version": "1.0.0",
   "documentation": "https://github.com/dougbaptista/ha_fuel_prices",
-  "requirements": ["pandas"],
+  "requirements": ["pandas", "openpyxl"],
   "dependencies": [],
-  "codeowners": ["@dougbaptista"]
+  "codeowners": ["@dougbaptista"],
+  "config_flow": true
 }
