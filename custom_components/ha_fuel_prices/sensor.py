@@ -1,20 +1,18 @@
 import aiohttp
+import asyncio
 import pandas as pd
 from bs4 import BeautifulSoup
 import re
-from datetime import datetime
-import logging
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from .const import DOMAIN
 
-_LOGGER = logging.getLogger(__name__)
-
 BASE_URL = "https://www.gov.br/anp/pt-br/assuntos/precos-e-defesa-da-concorrencia/precos/levantamento-de-precos-de-combustiveis-ultimas-semanas-pesquisadas"
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
+    """Configuração inicial do sensor."""
     sensors = [
         FuelPriceSensor(entry.data, "Etanol Hidratado"),
         FuelPriceSensor(entry.data, "Gasolina Comum"),
@@ -27,6 +25,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     async_add_entities(sensors)
 
 class FuelPriceSensor(SensorEntity):
+    """Representação de um sensor de preço de combustível."""
+
     def __init__(self, config, fuel_type):
         self._fuel_type = fuel_type
         self._state = None
@@ -39,27 +39,24 @@ class FuelPriceSensor(SensorEntity):
         return self._state
 
     async def async_update(self):
+        """Atualizar o estado do sensor."""
         try:
             xls_url = await fetch_latest_xls_url()
-            _LOGGER.info(f"URL XLS obtida: {xls_url}")
-
             if not xls_url:
-                _LOGGER.error("Não foi possível encontrar a URL XLS mais recente.")
-                return
-
+                raise ValueError("Não foi possível encontrar a URL XLS mais recente.")
             prices = await download_and_extract_sc_prices(xls_url)
-            _LOGGER.info(f"Preços extraídos: {prices}")
 
-            if not prices:
+            if not prices or self._fuel_type not in prices:
                 self._state = None
-                return
-
-            self._state = prices.get(self._fuel_type, None)
+            else:
+                self._state = prices[self._fuel_type]
         except Exception as e:
             self._state = None
-            _LOGGER.error(f"Erro ao atualizar {self._fuel_type}: {e}")
+            self.hass.helpers.logger.error(f"Erro ao atualizar {self._fuel_type}: {e}")
+
 
 async def fetch_latest_xls_url():
+    """Obtém a URL do último XLS disponível na página da ANP."""
     async with aiohttp.ClientSession() as session:
         async with session.get(BASE_URL) as response:
             if response.status != 200:
@@ -67,26 +64,17 @@ async def fetch_latest_xls_url():
             html = await response.text()
 
     soup = BeautifulSoup(html, "html.parser")
-    links = soup.find_all("a", href=re.compile(r"resumo_semanal_lpc_\d{4}-\d{2}-\d{2}"))
-
-    link_dates = []
-    for link in links:
-        href = link["href"]
-        match = re.search(r"(\d{4}-\d{2}-\d{2})", href)
-        if match:
-            link_date = datetime.strptime(match.group(1), "%Y-%m-%d")
-            link_dates.append((link_date, href))
-
-    if not link_dates:
+    links = soup.find_all("a", text=re.compile(r"Preços médios semanais: Brasil, regiões, estados e municípios"))
+    if not links:
         return None
-
-    latest_date, latest_link = max(link_dates, key=lambda x: x[0])
+    latest_link = links[0]["href"]
     if latest_link.startswith("/"):
         latest_link = "https://www.gov.br" + latest_link
-
     return latest_link
 
+
 async def download_and_extract_sc_prices(xls_url):
+    """Baixa o arquivo XLS e retorna os preços médios de Santa Catarina."""
     temp_path = "/tmp/fuel_prices_sc.xlsx"
 
     async with aiohttp.ClientSession() as session:
@@ -98,16 +86,26 @@ async def download_and_extract_sc_prices(xls_url):
                 f.write(content)
 
     try:
-        df = pd.read_excel(temp_path, skiprows=10, engine="openpyxl")
-        df_sc = df[(df["Estado"] == "SANTA CATARINA") & (df["Município"] == "TUBARÃO")]
+        df = pd.read_excel(temp_path, engine="openpyxl", skiprows=10)  # Pula as linhas antes do cabeçalho
+        # Identifica colunas por nomes aproximados
+        estado_col = next((col for col in df.columns if "estado" in col.lower()), None)
+        produto_col = next((col for col in df.columns if "produto" in col.lower()), None)
+        preco_col = next((col for col in df.columns if "preço médio" in col.lower()), None)
+
+        if not estado_col or not produto_col or not preco_col:
+            raise ValueError("Colunas necessárias não foram encontradas na planilha.")
+
+        # Filtra apenas Santa Catarina
+        df_sc = df[df[estado_col].str.strip().str.upper() == "SANTA CATARINA"]
 
         if df_sc.empty:
             return {}
 
+        # Extração dos preços médios por produto
         prices = {}
         for _, row in df_sc.iterrows():
-            product = str(row["Produto"].strip())
-            price = float(row["Preço Médio Revenda"])
+            product = str(row[produto_col]).strip()
+            price = float(row[preco_col])
             prices[product] = price
 
         return prices
