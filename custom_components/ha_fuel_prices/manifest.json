@@ -1,9 +1,11 @@
 {
   "domain": "ha_fuel_prices",
-  "name": "Fuel Prices Integration",
+  "name": "Fuel Prices (ANP)",
   "version": "1.0.0",
   "documentation": "https://github.com/dougbaptista/ha_fuel_prices",
+  "requirements": ["aiohttp", "pandas", "beautifulsoup4", "openpyxl"],
   "dependencies": [],
   "codeowners": ["@dougbaptista"],
-  "requirements": ["requests"]
+  "iot_class": "cloud_polling",
+  "config_flow": true
 }
