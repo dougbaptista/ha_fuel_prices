@@ -1,18 +1,13 @@
 import aiohttp
 import pandas as pd
-from bs4 import BeautifulSoup
-import re
 import asyncio
-import logging
-from aiofiles.tempfile import NamedTemporaryFile
+from io import BytesIO
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from .const import DOMAIN
 
 BASE_URL = "https://www.gov.br/anp/pt-br/assuntos/precos-e-defesa-da-concorrencia/precos/levantamento-de-precos-de-combustiveis-ultimas-semanas-pesquisadas"
-
-_LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
     """Configuração inicial do sensor."""
@@ -26,7 +21,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         FuelPriceSensor(entry.data, "Óleo Diesel S10"),
     ]
     async_add_entities(sensors)
-
 
 class FuelPriceSensor(SensorEntity):
     """Representação de um sensor de preço de combustível."""
@@ -45,23 +39,24 @@ class FuelPriceSensor(SensorEntity):
     async def async_update(self):
         """Atualizar o estado do sensor."""
         try:
+            # Obter a URL mais recente do XLS no site da ANP
             xls_url = await fetch_latest_xls_url()
             if not xls_url:
-                raise ValueError("Não foi possível encontrar a URL XLS mais recente.")
+                self.hass.helpers.logging.getLogger(__name__).error("Não foi possível encontrar a URL XLS mais recente.")
+                return
 
+            # Baixar e processar arquivo, extrair preços de SC e atualizar estado
             prices = await download_and_extract_sc_prices(xls_url)
 
-            if not prices or self._fuel_type not in prices:
-                self._state = None
-            else:
-                self._state = prices[self._fuel_type]
+            # Atualizar o estado do sensor com o preço do tipo de combustível correspondente
+            self._state = prices.get(self._fuel_type, None)
+
         except Exception as e:
             self._state = None
-            _LOGGER.error(f"Erro ao atualizar {self._fuel_type}: {e}")
-
+            self.hass.helpers.logging.getLogger(__name__).error(f"Erro ao atualizar {self._fuel_type}: {e}")
 
 async def fetch_latest_xls_url():
-    """Obtém a URL do último XLS disponível na página da ANP."""
+    """Encontra a URL do último XLS cujo link contenha 'Preços médios semanais: Brasil, regiões, estados e municípios'"""
     async with aiohttp.ClientSession() as session:
         async with session.get(BASE_URL) as response:
             if response.status != 200:
@@ -77,44 +72,42 @@ async def fetch_latest_xls_url():
         latest_link = "https://www.gov.br" + latest_link
     return latest_link
 
-
 async def download_and_extract_sc_prices(xls_url):
-    """Baixa o arquivo XLS e retorna um dicionário com os preços médios do estado de SC na aba MUNICIPIOS."""
-    temp_path = "/tmp/fuel_prices_sc.xlsx"
-
-    # Download do arquivo XLS
-    async with aiohttp.ClientSession() as session:
-        async with session.get(xls_url) as response:
-            if response.status != 200:
-                raise ValueError(f"Falha ao baixar o arquivo XLS: {response.status}")
-            content = await response.read()
-            with open(temp_path, "wb") as f:
-                f.write(content)
-
-    # Processamento da planilha
+    """Baixa o arquivo XLS, acessa a aba 'MUNICIPIOS' e retorna os preços médios do estado de SC."""
     try:
-        # Lê o arquivo e seleciona a aba "MUNICIPIOS"
-        df = pd.read_excel(temp_path, sheet_name="MUNICIPIOS", engine="openpyxl", skiprows=10)
+        # Baixar o arquivo diretamente para a memória
+        async with aiohttp.ClientSession() as session:
+            async with session.get(xls_url) as response:
+                if response.status != 200:
+                    raise ValueError(f"Erro ao baixar o arquivo XLS: {response.status}")
+                content = await response.read()
 
-        # Identificar as colunas relevantes
-        estado_col = next((col for col in df.columns if "estado" in col.lower()), None)
-        municipio_col = next((col for col in df.columns if "município" in col.lower()), None)
-        preco_col = next((col for col in df.columns if "preço médio" in col.lower()), None)
-        produto_col = next((col for col in df.columns if "produto" in col.lower()), None)
+        # Ler o arquivo XLS da memória
+        xls_file = BytesIO(content)
+        df = pd.read_excel(xls_file, sheet_name="MUNICIPIOS", engine="openpyxl", skiprows=10)
+
+        # Identificar as colunas relevantes dinamicamente
+        def find_column(columns, keyword):
+            for col in columns:
+                if isinstance(col, str) and keyword.lower() in col.lower():
+                    return col
+            return None
+
+        estado_col = find_column(df.columns, "estado")
+        municipio_col = find_column(df.columns, "município")
+        preco_col = find_column(df.columns, "preço médio")
+        produto_col = find_column(df.columns, "produto")
 
         # Verificar se todas as colunas foram encontradas
         if not all([estado_col, municipio_col, preco_col, produto_col]):
             raise ValueError("Colunas necessárias não foram encontradas na planilha.")
 
-        # Filtrar dados para o estado de SC
-        df_sc = df[df[estado_col].str.upper() == "SANTA CATARINA"]
+        # Filtrar dados para o estado de Santa Catarina
+        df_sc = df[df[estado_col].str.strip().str.upper() == "SANTA CATARINA"]
 
         # Agrupar os preços médios por tipo de combustível
-        prices = (
-            df_sc.groupby(produto_col)[preco_col]
-            .mean()
-            .to_dict()
-        )
+        prices = df_sc.groupby(produto_col)[preco_col].mean().to_dict()
+
         return prices
 
     except Exception as e:
