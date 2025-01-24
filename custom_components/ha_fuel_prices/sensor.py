@@ -4,10 +4,10 @@ from bs4 import BeautifulSoup
 import re
 import asyncio
 import logging
+from aiofiles.tempfile import NamedTemporaryFile
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from aiofiles.tempfile import NamedTemporaryFile
 from .const import DOMAIN
 
 BASE_URL = "https://www.gov.br/anp/pt-br/assuntos/precos-e-defesa-da-concorrencia/precos/levantamento-de-precos-de-combustiveis-ultimas-semanas-pesquisadas"
@@ -49,7 +49,7 @@ class FuelPriceSensor(SensorEntity):
             if not xls_url:
                 raise ValueError("Não foi possível encontrar a URL XLS mais recente.")
 
-            prices = await self.hass.async_add_executor_job(download_and_extract_sc_prices, xls_url)
+            prices = await download_and_extract_sc_prices(xls_url)
 
             if not prices or self._fuel_type not in prices:
                 self._state = None
@@ -78,44 +78,45 @@ async def fetch_latest_xls_url():
     return latest_link
 
 
-def download_and_extract_sc_prices(xls_url):
+async def download_and_extract_sc_prices(xls_url):
     """Baixa o arquivo XLS e retorna os preços médios de Santa Catarina."""
     try:
-        # Baixar o arquivo temporariamente
-        with NamedTemporaryFile(delete=False) as tmp_file:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(xls_url) as response:
-                    if response.status != 200:
-                        raise ValueError(f"Falha ao baixar XLS: {response.status}")
-                    tmp_file.write(response.content)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(xls_url) as response:
+                if response.status != 200:
+                    raise ValueError(f"Falha ao baixar XLS: {response.status}")
+                content = await response.read()
 
+        # Salva em arquivo temporário
+        async with NamedTemporaryFile(delete=False) as tmp_file:
+            await tmp_file.write(content)
             tmp_file_path = tmp_file.name
 
         # Processa o arquivo usando pandas
-        df = pd.read_excel(tmp_file_path, engine="openpyxl", skiprows=10)
-        df.columns = [str(col).strip().lower() for col in df.columns]
+        def process_excel():
+            df = pd.read_excel(tmp_file_path, engine="openpyxl", skiprows=10)
+            df.columns = [str(col).strip().lower() for col in df.columns]
 
-        # Identificar colunas
-        estado_col = next((col for col in df.columns if "estado" in col), None)
-        produto_col = next((col for col in df.columns if "produto" in col), None)
-        preco_col = next((col for col in df.columns if "preço médio" in col), None)
+            estado_col = next((col for col in df.columns if "estado" in col), None)
+            produto_col = next((col for col in df.columns if "produto" in col), None)
+            preco_col = next((col for col in df.columns if "preço médio" in col), None)
 
-        if not estado_col or not produto_col or not preco_col:
-            raise ValueError("Colunas necessárias não foram encontradas na planilha.")
+            if not estado_col or not produto_col or not preco_col:
+                raise ValueError("Colunas necessárias não foram encontradas na planilha.")
 
-        # Filtra apenas Santa Catarina
-        df_sc = df[df[estado_col].str.strip().str.upper() == "SANTA CATARINA"]
+            df_sc = df[df[estado_col].str.strip().str.upper() == "SANTA CATARINA"]
+            if df_sc.empty:
+                return {}
 
-        if df_sc.empty:
-            return {}
+            prices = {}
+            for _, row in df_sc.iterrows():
+                product = str(row[produto_col]).strip()
+                price = float(row[preco_col])
+                prices[product] = price
+            return prices
 
-        # Extração dos preços médios por produto
-        prices = {}
-        for _, row in df_sc.iterrows():
-            product = str(row[produto_col]).strip()
-            price = float(row[preco_col])
-            prices[product] = price
+        # Chama o processamento de forma síncrona
+        return await asyncio.get_event_loop().run_in_executor(None, process_excel)
 
-        return prices
     except Exception as e:
         raise ValueError(f"Erro ao processar planilha SC: {e}")
