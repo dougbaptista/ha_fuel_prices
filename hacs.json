@@ -9,10 +9,12 @@
   "filename": "custom_components/ha_fuel_prices",
   "tags": [
     "Integration",
-    "Combustível Brasil",
-    "Brazil"
+    "Fuel Prices",
+    "Brazil",
+    "Home Assistant"
   ],
   "authors": [
     "@dougbaptista"
-  ]
+  ],
+  "iot_class": "cloud_polling"
 }
