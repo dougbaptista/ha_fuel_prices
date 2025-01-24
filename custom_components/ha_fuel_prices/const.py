@@ -1,2 +1,1 @@
-DOMAIN = "ha_fuel_prices"
-PLATFORMS = ["sensor"]
+DOMAIN = "fuel_prices"
