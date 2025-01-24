@@ -3,6 +3,7 @@ import pandas as pd
 from bs4 import BeautifulSoup
 import re
 from aiofiles import open as aio_open
+from concurrent.futures import ThreadPoolExecutor
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -44,7 +45,9 @@ class FuelPriceSensor(SensorEntity):
             xls_url = await fetch_latest_xls_url()
             if not xls_url:
                 raise ValueError("Não foi possível encontrar a URL XLS mais recente.")
-            prices = await download_and_extract_sc_prices(xls_url)
+            
+            # Chama a extração de preços em uma thread separada
+            prices = await self.hass.async_add_executor_job(download_and_extract_sc_prices, xls_url)
 
             if not prices or self._fuel_type not in prices:
                 self._state = None
@@ -52,7 +55,7 @@ class FuelPriceSensor(SensorEntity):
                 self._state = prices[self._fuel_type]
         except Exception as e:
             self._state = None
-            self.hass.logger.error(f"Erro ao atualizar {self._fuel_type}: {e}")
+            self.hass.helpers.logging.getLogger(__name__).error(f"Erro ao atualizar {self._fuel_type}: {e}")
 
 
 async def fetch_latest_xls_url():
@@ -73,22 +76,22 @@ async def fetch_latest_xls_url():
     return latest_link
 
 
-async def download_and_extract_sc_prices(xls_url):
+def download_and_extract_sc_prices(xls_url):
     """Baixa o arquivo XLS e retorna os preços médios de Santa Catarina."""
     temp_path = "/tmp/fuel_prices_sc.xlsx"
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(xls_url) as response:
-            if response.status != 200:
-                raise ValueError(f"Falha ao baixar XLS: {response.status}")
-            content = await response.read()
-            async with aio_open(temp_path, "wb") as f:
-                await f.write(content)
+    # Baixar o arquivo
+    with aiohttp.ClientSession() as session:
+        response = session.get(xls_url)
+        if response.status != 200:
+            raise ValueError(f"Falha ao baixar XLS: {response.status}")
+        content = response.content
+        with open(temp_path, "wb") as f:
+            f.write(content)
 
     try:
         df = pd.read_excel(temp_path, engine="openpyxl", skiprows=10)  # Pula as linhas antes do cabeçalho
-        # Validar tipos de coluna para evitar erros
-        df.columns = [str(col).strip() for col in df.columns]
+        df.columns = [str(col).strip() for col in df.columns]  # Converte todos os nomes de coluna para string
         estado_col = next((col for col in df.columns if "estado" in col.lower()), None)
         produto_col = next((col for col in df.columns if "produto" in col.lower()), None)
         preco_col = next((col for col in df.columns if "preço médio" in col.lower()), None)
