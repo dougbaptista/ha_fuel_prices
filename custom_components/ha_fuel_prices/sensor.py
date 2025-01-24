@@ -1,9 +1,8 @@
 import aiohttp
-import asyncio
 import pandas as pd
 from bs4 import BeautifulSoup
 import re
-
+from aiofiles import open as aio_open
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -14,20 +13,21 @@ BASE_URL = "https://www.gov.br/anp/pt-br/assuntos/precos-e-defesa-da-concorrenci
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
     """Configuração inicial do sensor."""
     sensors = [
-        FuelPriceSensor(entry.data, "Etanol Hidratado"),
-        FuelPriceSensor(entry.data, "Gasolina Comum"),
-        FuelPriceSensor(entry.data, "Gasolina Aditivada"),
-        FuelPriceSensor(entry.data, "GLP"),
-        FuelPriceSensor(entry.data, "GNV"),
-        FuelPriceSensor(entry.data, "Óleo Diesel"),
-        FuelPriceSensor(entry.data, "Óleo Diesel S10"),
+        FuelPriceSensor(hass, entry.data, "Etanol Hidratado"),
+        FuelPriceSensor(hass, entry.data, "Gasolina Comum"),
+        FuelPriceSensor(hass, entry.data, "Gasolina Aditivada"),
+        FuelPriceSensor(hass, entry.data, "GLP"),
+        FuelPriceSensor(hass, entry.data, "GNV"),
+        FuelPriceSensor(hass, entry.data, "Óleo Diesel"),
+        FuelPriceSensor(hass, entry.data, "Óleo Diesel S10"),
     ]
     async_add_entities(sensors)
 
 class FuelPriceSensor(SensorEntity):
     """Representação de um sensor de preço de combustível."""
 
-    def __init__(self, config, fuel_type):
+    def __init__(self, hass, config, fuel_type):
+        self.hass = hass
         self._fuel_type = fuel_type
         self._state = None
         self._attr_name = f"Preço {fuel_type}"
@@ -52,7 +52,7 @@ class FuelPriceSensor(SensorEntity):
                 self._state = prices[self._fuel_type]
         except Exception as e:
             self._state = None
-            self.hass.helpers.logger.error(f"Erro ao atualizar {self._fuel_type}: {e}")
+            self.hass.logger.error(f"Erro ao atualizar {self._fuel_type}: {e}")
 
 
 async def fetch_latest_xls_url():
@@ -82,12 +82,13 @@ async def download_and_extract_sc_prices(xls_url):
             if response.status != 200:
                 raise ValueError(f"Falha ao baixar XLS: {response.status}")
             content = await response.read()
-            with open(temp_path, "wb") as f:
-                f.write(content)
+            async with aio_open(temp_path, "wb") as f:
+                await f.write(content)
 
     try:
         df = pd.read_excel(temp_path, engine="openpyxl", skiprows=10)  # Pula as linhas antes do cabeçalho
-        # Identifica colunas por nomes aproximados
+        # Validar tipos de coluna para evitar erros
+        df.columns = [str(col).strip() for col in df.columns]
         estado_col = next((col for col in df.columns if "estado" in col.lower()), None)
         produto_col = next((col for col in df.columns if "produto" in col.lower()), None)
         preco_col = next((col for col in df.columns if "preço médio" in col.lower()), None)
@@ -96,7 +97,7 @@ async def download_and_extract_sc_prices(xls_url):
             raise ValueError("Colunas necessárias não foram encontradas na planilha.")
 
         # Filtra apenas Santa Catarina
-        df_sc = df[df[estado_col].str.strip().str.upper() == "SANTA CATARINA"]
+        df_sc = df[df[estado_col].astype(str).str.strip().str.upper() == "SANTA CATARINA"]
 
         if df_sc.empty:
             return {}
