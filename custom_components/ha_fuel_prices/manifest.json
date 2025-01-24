@@ -1,10 +1,9 @@
 {
   "domain": "ha_fuel_prices",
-  "name": "Preços de Combustíveis (ANP)",
+  "name": "Fuel Prices Integration",
   "version": "1.0.0",
   "documentation": "https://github.com/dougbaptista/ha_fuel_prices",
-  "requirements": ["pandas", "openpyxl"],
   "dependencies": [],
   "codeowners": ["@dougbaptista"],
-  "config_flow": true
+  "requirements": ["requests"]
 }
