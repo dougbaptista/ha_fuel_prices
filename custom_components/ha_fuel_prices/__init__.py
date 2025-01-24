@@ -6,7 +6,7 @@ DOMAIN = "fuel_prices"
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Configuração inicial da integração."""
-    await hass.config_entries.async_forward_entry_setup(entry, "sensor")
+    await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
     return True
 
 async def async_setup(hass: HomeAssistant, config: ConfigType):

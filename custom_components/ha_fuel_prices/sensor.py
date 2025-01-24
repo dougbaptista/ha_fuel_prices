@@ -79,44 +79,43 @@ async def fetch_latest_xls_url():
 
 
 async def download_and_extract_sc_prices(xls_url):
-    """Baixa o arquivo XLS e retorna os preços médios de Santa Catarina."""
+    """Baixa o arquivo XLS e retorna um dicionário com os preços médios do estado de SC na aba MUNICIPIOS."""
+    temp_path = "/tmp/fuel_prices_sc.xlsx"
+
+    # Download do arquivo XLS
+    async with aiohttp.ClientSession() as session:
+        async with session.get(xls_url) as response:
+            if response.status != 200:
+                raise ValueError(f"Falha ao baixar o arquivo XLS: {response.status}")
+            content = await response.read()
+            with open(temp_path, "wb") as f:
+                f.write(content)
+
+    # Processamento da planilha
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(xls_url) as response:
-                if response.status != 200:
-                    raise ValueError(f"Falha ao baixar XLS: {response.status}")
-                content = await response.read()
+        # Lê o arquivo e seleciona a aba "MUNICIPIOS"
+        df = pd.read_excel(temp_path, sheet_name="MUNICIPIOS", engine="openpyxl", skiprows=10)
 
-        # Salva em arquivo temporário
-        async with NamedTemporaryFile(delete=False) as tmp_file:
-            await tmp_file.write(content)
-            tmp_file_path = tmp_file.name
+        # Identificar as colunas relevantes
+        estado_col = next((col for col in df.columns if "estado" in col.lower()), None)
+        municipio_col = next((col for col in df.columns if "município" in col.lower()), None)
+        preco_col = next((col for col in df.columns if "preço médio" in col.lower()), None)
+        produto_col = next((col for col in df.columns if "produto" in col.lower()), None)
 
-        # Processa o arquivo usando pandas
-        def process_excel():
-            df = pd.read_excel(tmp_file_path, engine="openpyxl", skiprows=10)
-            df.columns = [str(col).strip().lower() for col in df.columns]
+        # Verificar se todas as colunas foram encontradas
+        if not all([estado_col, municipio_col, preco_col, produto_col]):
+            raise ValueError("Colunas necessárias não foram encontradas na planilha.")
 
-            estado_col = next((col for col in df.columns if "estado" in col), None)
-            produto_col = next((col for col in df.columns if "produto" in col), None)
-            preco_col = next((col for col in df.columns if "preço médio" in col), None)
+        # Filtrar dados para o estado de SC
+        df_sc = df[df[estado_col].str.upper() == "SANTA CATARINA"]
 
-            if not estado_col or not produto_col or not preco_col:
-                raise ValueError("Colunas necessárias não foram encontradas na planilha.")
-
-            df_sc = df[df[estado_col].str.strip().str.upper() == "SANTA CATARINA"]
-            if df_sc.empty:
-                return {}
-
-            prices = {}
-            for _, row in df_sc.iterrows():
-                product = str(row[produto_col]).strip()
-                price = float(row[preco_col])
-                prices[product] = price
-            return prices
-
-        # Chama o processamento de forma síncrona
-        return await asyncio.get_event_loop().run_in_executor(None, process_excel)
+        # Agrupar os preços médios por tipo de combustível
+        prices = (
+            df_sc.groupby(produto_col)[preco_col]
+            .mean()
+            .to_dict()
+        )
+        return prices
 
     except Exception as e:
-        raise ValueError(f"Erro ao processar planilha SC: {e}")
+        raise ValueError(f"Erro ao processar a aba 'MUNICIPIOS': {e}")
