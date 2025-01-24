@@ -3,11 +3,14 @@ import pandas as pd
 from bs4 import BeautifulSoup
 import re
 from datetime import datetime
+import logging
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from .const import DOMAIN
+
+_LOGGER = logging.getLogger(__name__)
 
 BASE_URL = "https://www.gov.br/anp/pt-br/assuntos/precos-e-defesa-da-concorrencia/precos/levantamento-de-precos-de-combustiveis-ultimas-semanas-pesquisadas"
 
@@ -38,14 +41,14 @@ class FuelPriceSensor(SensorEntity):
     async def async_update(self):
         try:
             xls_url = await fetch_latest_xls_url()
-            self.hass.logger.info(f"URL XLS obtida: {xls_url}")
+            _LOGGER.info(f"URL XLS obtida: {xls_url}")
 
             if not xls_url:
-                self.hass.logger.error("Não foi possível encontrar a URL XLS mais recente.")
+                _LOGGER.error("Não foi possível encontrar a URL XLS mais recente.")
                 return
 
             prices = await download_and_extract_sc_prices(xls_url)
-            self.hass.logger.info(f"Preços extraídos: {prices}")
+            _LOGGER.info(f"Preços extraídos: {prices}")
 
             if not prices:
                 self._state = None
@@ -54,7 +57,7 @@ class FuelPriceSensor(SensorEntity):
             self._state = prices.get(self._fuel_type, None)
         except Exception as e:
             self._state = None
-            self.hass.logger.error(f"Erro ao atualizar {self._fuel_type}: {e}")
+            _LOGGER.error(f"Erro ao atualizar {self._fuel_type}: {e}")
 
 async def fetch_latest_xls_url():
     async with aiohttp.ClientSession() as session:
