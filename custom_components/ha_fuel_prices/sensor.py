@@ -12,7 +12,7 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN  # Importação relativa para HA
+from .const import DOMAIN  # O arquivo const.py deve estar na mesma pasta
 
 BASE_URL = (
     "https://www.gov.br/anp/pt-br/assuntos/precos-e-defesa-da-concorrencia/"
@@ -29,7 +29,7 @@ def normalize_text(text):
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
     """Configuração inicial do sensor no Home Assistant."""
-    # Lista dos combustíveis (os nomes devem coincidir com os produtos na planilha, em uppercase)
+    # Lista dos combustíveis (deve coincidir com os produtos na planilha, em uppercase)
     fuel_types = [
         "ETANOL HIDRATADO",
         "GASOLINA COMUM",
@@ -51,14 +51,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     async_add_entities(sensors)
 
 class FuelPriceSensor(SensorEntity):
-    """Sensor de preço de combustível para um tipo específico de preço."""
+    """Sensor de preço de combustível para um tipo específico (mínimo, médio ou máximo)."""
 
     def __init__(self, config, fuel_type, price_type, sensor_name):
         """
         :param config: Dicionário de configuração com 'state' e 'city'
         :param fuel_type: Tipo de combustível (em uppercase, ex: "ETANOL HIDRATADO")
         :param price_type: "min", "med" ou "max"
-        :param sensor_name: Nome do sensor, que incluirá a cidade
+        :param sensor_name: Nome do sensor (incluindo a cidade)
         """
         self._fuel_type = fuel_type
         self._price_type = price_type
@@ -84,8 +84,10 @@ class FuelPriceSensor(SensorEntity):
                 logger.error("Não foi possível encontrar a URL XLS mais recente.")
                 return
 
-            # Passa a configuração para filtrar os dados (estado e cidade)
-            prices = await download_and_extract_sc_prices(xls_url, self._config)
+            # Use o executor para chamar a função bloqueante
+            prices = await self.hass.async_add_executor_job(
+                download_and_extract_sc_prices, xls_url, self._config
+            )
             if not prices:
                 self._state = None
                 return
@@ -96,7 +98,7 @@ class FuelPriceSensor(SensorEntity):
                 self._attr_extra_state_attributes = {
                     "min": price_info.get("min"),
                     "médio": price_info.get("med"),
-                    "máximo": price_info.get("max")
+                    "máximo": price_info.get("max"),
                 }
             else:
                 self._state = None
@@ -120,38 +122,41 @@ async def fetch_latest_xls_url():
         latest_link = "https://www.gov.br" + latest_link
     return latest_link
 
-async def download_and_extract_sc_prices(xls_url, config):
+def download_and_extract_sc_prices(xls_url, config):
     """
-    Baixa o arquivo XLSX e retorna um dicionário com os preços para cada combustível,
+    Sincronamente (executado em um executor) baixa o arquivo XLSX e retorna um dicionário com os preços para cada combustível
     para o município e estado configurados (por exemplo, TUBARAO, SANTA CATARINA),
-    a partir da aba "MUNICIPIOS". Cada produto terá um dicionário com as chaves:
-    "min", "med" e "max".
+    a partir da aba "MUNICIPIOS". Cada produto terá um dicionário com as chaves: "min", "med" e "max".
     """
     temp_dir = tempfile.gettempdir()
     temp_path = os.path.join(temp_dir, "fuel_prices_sc.xlsx")
     logger.debug(f"Arquivo XLSX será salvo em: {temp_path}")
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(xls_url) as response:
-            if response.status != 200:
-                raise ValueError(f"Falha ao baixar o arquivo XLS: {response.status}")
-            content = await response.read()
-            with open(temp_path, "wb") as f:
-                f.write(content)
+    # Baixa o arquivo (bloco) – essa parte é executada dentro do executor, portanto é segura
+    with aiohttp.ClientSession() as session:
+        # Usamos requests síncronos aqui ou outra abordagem; para simplificar, usaremos aiohttp em modo síncrono
+        # (Observação: se necessário, pode-se usar requests.get, mas certifique-se de que as dependências estejam disponíveis)
+        import requests  # Usamos requests aqui para a operação síncrona
+        r = requests.get(xls_url)
+        if r.status_code != 200:
+            raise ValueError(f"Falha ao baixar o arquivo XLS: {r.status_code}")
+        with open(temp_path, "wb") as f:
+            f.write(r.content)
 
     if not zipfile.is_zipfile(temp_path):
         logger.error("O arquivo XLSX baixado está corrompido ou incompleto (ZIP inválido).")
         return {}
 
     try:
-        # Usamos skiprows=9 para que a linha 10 seja interpretada como cabeçalho
+        # Ajuste: usamos skiprows=9 para que a linha de cabeçalho correta seja lida
         df = pd.read_excel(temp_path, sheet_name="MUNICIPIOS", engine="openpyxl", skiprows=9)
-        # Normaliza os nomes das colunas: remove acentos, espaços e converte para uppercase
+        # Normaliza os nomes das colunas removendo acentos, espaços e convertendo para uppercase
         df.columns = [normalize_text(col) for col in df.columns]
         logger.debug("Cabeçalhos do XLSX: " + ", ".join(df.columns))
         if "ESTADO" not in df.columns or "MUNICIPIO" not in df.columns:
             raise ValueError("Colunas esperadas 'ESTADO' ou 'MUNICIPIO' não foram encontradas.")
 
+        # Normaliza as colunas de filtro
         df["ESTADO"] = df["ESTADO"].astype(str).str.strip().str.upper()
         df["MUNICIPIO"] = df["MUNICIPIO"].astype(str).str.strip().str.upper()
 
