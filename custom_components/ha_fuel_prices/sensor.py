@@ -98,6 +98,8 @@ async def download_and_extract_sc_prices(xls_url):
     try:
         # Lê a aba "MUNICIPIOS" do arquivo XLSX, pulando as primeiras 10 linhas
         df = pd.read_excel(temp_path, sheet_name="MUNICIPIOS", engine="openpyxl", skiprows=10)
+        # Converte os nomes das colunas para string para evitar erros na junção
+        df.columns = df.columns.astype(str)
         logger.debug("Cabeçalhos do XLSX: " + ", ".join(df.columns))
         
         # Normaliza as colunas "Estado" e "Município"
@@ -107,7 +109,6 @@ async def download_and_extract_sc_prices(xls_url):
         # Filtra para registros onde Estado seja "SANTA CATARINA" e Município seja "TUBARÃO"
         df_sc = df[(df["Estado"] == "SANTA CATARINA") & (df["Município"] == "TUBARÃO")]
         logger.debug("Registros filtrados:\n" + df_sc.head().to_string())
-
         if df_sc.empty:
             logger.error("Nenhum registro encontrado para SANTA CATARINA / TUBARÃO na aba MUNICIPIOS.")
             return {}
