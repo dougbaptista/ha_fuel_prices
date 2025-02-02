@@ -96,15 +96,18 @@ async def download_and_extract_sc_prices(xls_url):
                 f.write(content)
 
     try:
-        # Lê a aba "MUNICIPIOS" (sem acento) do arquivo XLSX, pulando as primeiras 10 linhas
+        # Lê a aba "MUNICIPIOS" do arquivo XLSX, pulando as primeiras 10 linhas
         df = pd.read_excel(temp_path, sheet_name="MUNICIPIOS", engine="openpyxl", skiprows=10)
-
+        logger.debug("Cabeçalhos do XLSX: " + ", ".join(df.columns))
+        
         # Normaliza as colunas "Estado" e "Município"
         df["Estado"] = df["Estado"].astype(str).str.strip().str.upper()
         df["Município"] = df["Município"].astype(str).str.strip().str.upper()
 
         # Filtra para registros onde Estado seja "SANTA CATARINA" e Município seja "TUBARÃO"
         df_sc = df[(df["Estado"] == "SANTA CATARINA") & (df["Município"] == "TUBARÃO")]
+        logger.debug("Registros filtrados:\n" + df_sc.head().to_string())
+
         if df_sc.empty:
             logger.error("Nenhum registro encontrado para SANTA CATARINA / TUBARÃO na aba MUNICIPIOS.")
             return {}
@@ -118,6 +121,7 @@ async def download_and_extract_sc_prices(xls_url):
             except Exception as e:
                 logger.error(f"Erro ao converter o preço para o produto {product}: {e}")
                 price = None
+            logger.debug(f"Produto: {product}, Preço: {price}")
             prices[product] = price
 
         return prices
