@@ -1,6 +1,6 @@
 # Fuel Prices (Preços de Combustíveis no Brasil)
 
-Este componente personalizado para o Home Assistant busca e exibe os preços de combustíveis a partir dos dados publicados pela Agência Nacional do Petróleo, Gás Natural e Biocombustíveis (ANP). Ele extrai informações de um arquivo XLSX disponibilizado no site oficial e cria sensores que mostram os preços **mínimo**, **médio** e **máximo** para cada tipo de combustível, filtrando os dados pelo estado e município configurados.
+Este componente personalizado para o Home Assistant busca e exibe os preços de combustíveis a partir dos dados publicados pela [Agência Nacional do Petróleo, Gás Natural e Biocombustíveis (ANP)](https://www.gov.br/anp/pt-br/assuntos/precos-e-defesa-da-concorrencia/precos/levantamento-de-precos-de-combustiveis-ultimas-semanas-pesquisadas). Ele extrai informações de um arquivo XLSX disponibilizado no site oficial e cria sensores que mostram os preços **mínimo**, **médio** e **máximo** para cada tipo de combustível, filtrando os dados pelo estado e município configurados.
 
 ## Recursos
 
