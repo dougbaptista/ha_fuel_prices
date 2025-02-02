@@ -11,6 +11,46 @@ from .const import DOMAIN
 BASE_URL = "https://www.gov.br/anp/pt-br/assuntos/precos-e-defesa-da-concorrencia/precos/levantamento-de-precos-de-combustiveis-ultimas-semanas-pesquisadas"
 logger = logging.getLogger(__name__)
 
+# Função auxiliar para escrita bloqueante de arquivo (executada no executor)
+def write_file(temp_path, content):
+    with open(temp_path, "wb") as f:
+        f.write(content)
+
+# Função auxiliar para ler e processar o arquivo Excel (executada no executor)
+def read_and_process_excel(temp_path):
+    # Lê a aba "MUNICIPIOS" do arquivo XLSX, pulando as primeiras 10 linhas
+    df = pd.read_excel(temp_path, sheet_name="MUNICIPIOS", engine="openpyxl", skiprows=10)
+    # Converte os nomes das colunas para string, removendo espaços e deixando em maiúsculas
+    df.columns = df.columns.astype(str).str.strip().str.upper()
+    logger.debug("Cabeçalhos do XLSX: " + ", ".join(df.columns))
+    
+    # Verifica se as colunas necessárias existem
+    required_columns = {"ESTADO", "MUNICÍPIO", "PRODUTO", "PREÇO MÉDIO REVENDA"}
+    if not required_columns.issubset(set(df.columns)):
+        raise ValueError(f"Colunas necessárias não encontradas. Encontradas: {df.columns.tolist()}")
+    
+    # Normaliza as colunas "ESTADO" e "MUNICÍPIO"
+    df["ESTADO"] = df["ESTADO"].astype(str).str.strip().str.upper()
+    df["MUNICÍPIO"] = df["MUNICÍPIO"].astype(str).str.strip().str.upper()
+
+    # Filtra para registros onde ESTADO seja "SANTA CATARINA" e MUNICÍPIO seja "TUBARÃO"
+    df_sc = df[(df["ESTADO"] == "SANTA CATARINA") & (df["MUNICÍPIO"] == "TUBARÃO")]
+    logger.debug("Registros filtrados:\n" + df_sc.head().to_string())
+    if df_sc.empty:
+        raise ValueError("Nenhum registro encontrado para SANTA CATARINA / TUBARÃO na aba MUNICÍPIOS.")
+
+    prices = {}
+    for _, row in df_sc.iterrows():
+        product = str(row["PRODUTO"]).strip()
+        try:
+            # Converte o valor substituindo a vírgula por ponto
+            price = float(str(row["PREÇO MÉDIO REVENDA"]).replace(",", "."))
+        except Exception as e:
+            raise ValueError(f"Erro ao converter o preço para o produto {product}: {e}")
+        prices[product] = price
+
+    return prices
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
     """Configuração inicial do sensor."""
     sensors = [
@@ -48,7 +88,8 @@ class FuelPriceSensor(SensorEntity):
                 return
 
             # Baixar e processar o arquivo, extraindo preços para o município de TUBARÃO (SC)
-            prices = await download_and_extract_sc_prices(xls_url)
+            # Passa o objeto hass para a função para executar as operações bloqueantes no executor.
+            prices = await download_and_extract_sc_prices(self.hass, xls_url)
 
             if not prices:
                 self._state = None
@@ -79,7 +120,7 @@ async def fetch_latest_xls_url():
 
     return latest_link
 
-async def download_and_extract_sc_prices(xls_url):
+async def download_and_extract_sc_prices(hass: HomeAssistant, xls_url):
     """
     Baixa o arquivo XLSX e retorna um dicionário com os preços médios
     para o município de TUBARÃO, no estado SANTA CATARINA,
@@ -87,44 +128,44 @@ async def download_and_extract_sc_prices(xls_url):
     """
     temp_path = "/tmp/fuel_prices_sc.xlsx"
 
+    # Baixa o arquivo XLSX de forma assíncrona
     async with aiohttp.ClientSession() as session:
         async with session.get(xls_url) as response:
             if response.status != 200:
                 raise ValueError(f"Falha ao baixar o arquivo XLS: {response.status}")
             content = await response.read()
-            with open(temp_path, "wb") as f:
-                f.write(content)
 
-    try:
-        # Lê a aba "MUNICIPIOS" do arquivo XLSX, pulando as primeiras 10 linhas
-        df = pd.read_excel(temp_path, sheet_name="MUNICIPIOS", engine="openpyxl", skiprows=10)
-        # Converte os nomes das colunas para string para evitar erros na junção
-        df.columns = df.columns.astype(str)
-        logger.debug("Cabeçalhos do XLSX: " + ", ".join(df.columns))
-        
-        # Normaliza as colunas "Estado" e "Município"
-        df["Estado"] = df["Estado"].astype(str).str.strip().str.upper()
-        df["Município"] = df["Município"].astype(str).str.strip().str.upper()
+    # Escreve o arquivo usando o executor (para evitar bloqueio)
+    await hass.async_add_executor_job(write_file, temp_path, content)
 
-        # Filtra para registros onde Estado seja "SANTA CATARINA" e Município seja "TUBARÃO"
-        df_sc = df[(df["Estado"] == "SANTA CATARINA") & (df["Município"] == "TUBARÃO")]
-        logger.debug("Registros filtrados:\n" + df_sc.head().to_string())
-        if df_sc.empty:
-            logger.error("Nenhum registro encontrado para SANTA CATARINA / TUBARÃO na aba MUNICIPIOS.")
-            return {}
+    # Lê e processa o arquivo XLSX usando o executor
+    prices = await hass.async_add_executor_job(read_and_process_excel, temp_path)
+    return prices
 
-        prices = {}
-        for _, row in df_sc.iterrows():
-            product = str(row["Produto"]).strip()
-            try:
-                # Converte o valor, substituindo a vírgula decimal por ponto
-                price = float(str(row["PREÇO MÉDIO REVENDA"]).replace(",", "."))
-            except Exception as e:
-                logger.error(f"Erro ao converter o preço para o produto {product}: {e}")
-                price = None
-            logger.debug(f"Produto: {product}, Preço: {price}")
-            prices[product] = price
+def read_and_process_excel(temp_path):
+    """Função bloqueante para ler o XLSX e extrair os preços para TUBARÃO (SC)."""
+    df = pd.read_excel(temp_path, sheet_name="MUNICIPIOS", engine="openpyxl", skiprows=10)
+    # Converte os nomes das colunas para strings em maiúsculas
+    df.columns = df.columns.astype(str).str.strip().str.upper()
+    logger.debug("Cabeçalhos do XLSX: " + ", ".join(df.columns))
 
-        return prices
-    except Exception as e:
-        raise ValueError(f"Erro ao processar a aba 'MUNICIPIOS': {e}")
+    # Normaliza as colunas "ESTADO" e "MUNICÍPIO"
+    df["ESTADO"] = df["ESTADO"].astype(str).str.strip().str.upper()
+    df["MUNICÍPIO"] = df["MUNICÍPIO"].astype(str).str.strip().str.upper()
+
+    # Filtra para registros onde ESTADO seja "SANTA CATARINA" e MUNICÍPIO seja "TUBARÃO"
+    df_sc = df[(df["ESTADO"] == "SANTA CATARINA") & (df["MUNICÍPIO"] == "TUBARÃO")]
+    logger.debug("Registros filtrados:\n" + df_sc.head().to_string())
+    if df_sc.empty:
+        raise ValueError("Nenhum registro encontrado para SANTA CATARINA / TUBARÃO na aba MUNICIPIOS.")
+
+    prices = {}
+    for _, row in df_sc.iterrows():
+        product = str(row["PRODUTO"]).strip()
+        try:
+            price = float(str(row["PREÇO MÉDIO REVENDA"]).replace(",", "."))
+        except Exception as e:
+            raise ValueError(f"Erro ao converter o preço para o produto {product}: {e}")
+        prices[product] = price
+
+    return prices
