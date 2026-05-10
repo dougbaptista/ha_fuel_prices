@@ -40,7 +40,6 @@ Este componente personalizado para o Home Assistant busca e exibe os preços de 
 - **Dependências Python:**  
   As dependências são definidas no `manifest.json` e incluem:
   - `aiohttp`
-  - `pandas`
   - `openpyxl`
   - `beautifulsoup4`
 
@@ -63,7 +62,7 @@ Este componente personalizado para o Home Assistant busca e exibe os preços de 
 5. **Reinicie o Home Assistant:**  
    Após a instalação, reinicie o Home Assistant para que o componente seja carregado.
 
-## Instalação
+## Configuração
 
 1. Procure por **Fuel Prices** em **Configurações > Dispositivos e Serviços**.
 2. Após instalar o componente via serviços, durante o fluxo de configuração, você poderá informar:
@@ -73,9 +72,24 @@ Este componente personalizado para o Home Assistant busca e exibe os preços de 
 
 Esses parâmetros serão utilizados para filtrar os dados da planilha e garantir que apenas os preços relevantes para sua região sejam exibidos.
 
-## Tempo de Atualização:
-Dependendo do tamanho do arquivo XLSX, a atualização dos sensores pode levar alguns segundos (entre 40 e 60 segundos). Se o tempo de atualização for elevado, verifique a conectividade e a performance do servidor.
-
 ## Contribuição
+
 Contribuições são bem-vindas! Se você tiver sugestões, encontrar bugs ou desejar melhorias, sinta-se à vontade para abrir uma issue ou enviar um pull request no repositório.
 
+## Changelog
+
+### v1.1.0
+
+**Melhorias de desempenho e estabilidade:**
+
+- **Coordenador centralizado (DataUpdateCoordinator):** Os dados da ANP agora são buscados uma única vez e compartilhados entre todos os sensores. Antes, cada sensor (21 no total) fazia seu próprio download e processamento do arquivo — agora é apenas 1 requisição por ciclo.
+
+- **Intervalo de atualização otimizado:** Atualização a cada 6 horas (os dados da ANP são semanais, não faz sentido consultar com mais frequência).
+
+- **Remoção do pandas:** Substituído por leitura direta com `openpyxl` em modo `read_only`. Reduz significativamente o consumo de memória e o tempo de inicialização, especialmente em dispositivos como Raspberry Pi.
+
+- **Preservação do histórico:** O sensor agora mantém o último valor válido quando os dados estão indisponíveis (erro de rede, arquivo corrompido, valor inválido). Isso evita "buracos" no histórico com estados `unknown/unavailable`.
+
+### v1.0.0
+
+- Versão inicial com busca de preços da ANP por município.
