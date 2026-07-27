@@ -73,3 +73,18 @@ def test_effective_config_lets_options_override_data() -> None:
 def test_sensor_declares_long_term_statistics_support() -> None:
     """Sem state_class os preços não entram nas estatísticas históricas."""
     assert sensor.FuelPriceSensor._attr_state_class == "measurement"
+
+
+@pytest.mark.parametrize(
+    ("unit", "expected"),
+    [
+        ("BRL/L", 3),  # bombas exibem 3 casas: 6,299
+        ("BRL/13kg", 2),  # 112,140 parecia 112 mil
+        ("BRL/m³", 2),  # a ANP publica GNV com 2 casas
+        ("unidade nova", 2),
+    ],
+)
+def test_display_precision_follows_the_unit(unit: str, expected: int) -> None:
+    from custom_components.fuel_prices.const import DEFAULT_PRECISION, PRECISION_BY_UNIT
+
+    assert PRECISION_BY_UNIT.get(unit, DEFAULT_PRECISION) == expected

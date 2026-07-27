@@ -75,3 +75,9 @@ UNIT_TRANSLATIONS: Final = {
 # Usados só se a coluna de unidade sumir da planilha.
 FALLBACK_UNITS: Final = {"GLP": "BRL/13kg", "GNV": "BRL/m³"}
 DEFAULT_UNIT: Final = "BRL/L"
+
+# Combustível por litro é exibido com 3 casas, como nas bombas (6,299). Botijão
+# de GLP e GNV por m³ a ANP publica com 2, e 3 casas deixam "112,140" parecendo
+# 112 mil.
+PRECISION_BY_UNIT: Final = {"BRL/L": 3}
+DEFAULT_PRECISION: Final = 2

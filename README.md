@@ -77,6 +77,12 @@ Contribuições são bem-vindas! Se você tiver sugestões, encontrar bugs ou de
 
 ## Changelog
 
+### v1.2.1
+
+- **Precisão de exibição por unidade.** Combustível por litro continua com 3
+  casas, como nas bombas (`6,299`), mas GLP e GNV passam a usar 2 — o botijão
+  aparecia como `112,140 BRL/13kg`, que se lê como 112 mil.
+
 ### v1.2.0
 
 **⚠️ Atualização de manutenção — leia a nota de migração abaixo.**

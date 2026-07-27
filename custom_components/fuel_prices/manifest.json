@@ -8,5 +8,5 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/dougbaptista/ha_fuel_prices/issues",
   "requirements": ["openpyxl==3.1.5", "beautifulsoup4==4.12.3"],
-  "version": "1.2.0"
+  "version": "1.2.1"
 }

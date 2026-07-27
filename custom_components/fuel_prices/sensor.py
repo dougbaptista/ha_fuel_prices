@@ -12,12 +12,14 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     BASE_URL,
+    DEFAULT_PRECISION,
     DEFAULT_UNIT,
     DOMAIN,
     FALLBACK_UNITS,
     FUEL_ICONS,
     FUEL_TYPES,
     MAX_DATA_AGE,
+    PRECISION_BY_UNIT,
     PRICE_TYPE_NAMES,
     PRICE_TYPES,
 )
@@ -44,7 +46,6 @@ class FuelPriceSensor(CoordinatorEntity[FuelPriceCoordinator], SensorEntity):
     """Preço (mínimo, médio ou máximo) de um combustível no município."""
 
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_suggested_display_precision = 3
 
     def __init__(
         self,
@@ -63,9 +64,11 @@ class FuelPriceSensor(CoordinatorEntity[FuelPriceCoordinator], SensorEntity):
         # por m³). Fixada na construção para não variar durante a vida da
         # entidade, o que invalidaria as estatísticas de longo prazo.
         initial = (coordinator.data or {}).get(fuel_type) or {}
-        self._attr_native_unit_of_measurement = initial.get(
-            "unit"
-        ) or FALLBACK_UNITS.get(fuel_type, DEFAULT_UNIT)
+        unit = initial.get("unit") or FALLBACK_UNITS.get(fuel_type, DEFAULT_UNIT)
+        self._attr_native_unit_of_measurement = unit
+        self._attr_suggested_display_precision = PRECISION_BY_UNIT.get(
+            unit, DEFAULT_PRECISION
+        )
         self._attr_icon = FUEL_ICONS.get(fuel_type, "mdi:cash")
         self._attr_name = (
             f"Preço {fuel_type.title()} ({coordinator.city_name.title()})"
