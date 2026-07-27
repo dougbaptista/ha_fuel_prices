@@ -72,6 +72,12 @@ def _install_homeassistant_stubs() -> None:
     module("homeassistant.helpers.device_registry", DeviceInfo=dict)
     module("homeassistant.helpers.entity_platform", AddEntitiesCallback=object)
     module("homeassistant.helpers.entity_registry", async_get=lambda hass: None)
+    module(
+        "homeassistant.helpers.selector",
+        SelectSelector=stub_class("SelectSelector"),
+        SelectSelectorConfig=stub_class("SelectSelectorConfig"),
+        SelectSelectorMode=types.SimpleNamespace(DROPDOWN="dropdown", LIST="list"),
+    )
     module("homeassistant.helpers.typing", ConfigType=dict)
     module(
         "homeassistant.helpers.update_coordinator",

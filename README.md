@@ -64,18 +64,32 @@ Este componente personalizado para o Home Assistant busca e exibe os preços de 
 ## Configuração
 
 1. Procure por **Fuel Prices** em **Configurações > Dispositivos e Serviços**.
-2. Após instalar o componente via serviços, durante o fluxo de configuração, você poderá informar:
+2. O fluxo tem dois passos: escolha o **estado** e depois o **município**.
 
-- **Estado:** (Ex.: `SANTA CATARINA`)
-- **Município:** (Ex.: `TUBARAO`)
+As duas listas são montadas a partir da planilha da ANP, então só aparecem
+localidades que ela realmente pesquisa — atualmente **388 municípios** em todo
+o país. Se a sua cidade não estiver na lista, é porque a ANP não coleta preços
+nela; escolha o município pesquisado mais próximo.
 
-Esses parâmetros serão utilizados para filtrar os dados da planilha e garantir que apenas os preços relevantes para sua região sejam exibidos.
+Para trocar de localidade depois, use **Configurar** na integração. As
+entidades e o histórico são preservados.
 
 ## Contribuição
 
 Contribuições são bem-vindas! Se você tiver sugestões, encontrar bugs ou desejar melhorias, sinta-se à vontade para abrir uma issue ou enviar um pull request no repositório.
 
 ## Changelog
+
+### v1.3.0
+
+- **Estado e município viram listas de seleção.** Os dois campos eram texto
+  livre. A ANP pesquisa apenas **388 municípios** dos 5.570 do país (Santa
+  Catarina, por exemplo, tem 16), então digitar uma cidade não pesquisada
+  instalava a integração normalmente e ela simplesmente nunca trazia dado.
+  Agora o fluxo tem dois passos — estado e depois município — e as opções vêm
+  da própria planilha da ANP, mostrando só o que existe de fato.
+- Se a ANP estiver inacessível no momento da configuração, o formulário cai
+  automaticamente para entrada livre, com aviso.
 
 ### v1.2.1
 

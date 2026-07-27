@@ -3,15 +3,23 @@
     "step": {
       "user": {
         "title": "Fuel Prices",
-        "description": "Enter the state and municipality to track, exactly as published by ANP (accents are ignored).",
+        "description": "Pick the state you want to track. The list comes from the spreadsheet ANP publishes.",
         "data": {
           "state": "State",
+          "city": "Municipality"
+        }
+      },
+      "city": {
+        "title": "Municipality",
+        "description": "Municipalities surveyed by ANP in {state}. Towns not surveyed are not listed.",
+        "data": {
           "city": "Municipality"
         }
       }
     },
     "error": {
-      "invalid_location": "State and municipality cannot be empty."
+      "invalid_location": "State and municipality cannot be empty.",
+      "cannot_connect": "Could not reach ANP to load the list of locations. Type the state and municipality manually, exactly as ANP publishes them."
     },
     "abort": {
       "already_configured": "This municipality is already configured."
@@ -26,10 +34,18 @@
           "state": "State",
           "city": "Municipality"
         }
+      },
+      "city": {
+        "title": "Municipality",
+        "description": "Municipalities surveyed by ANP in {state}.",
+        "data": {
+          "city": "Municipality"
+        }
       }
     },
     "error": {
-      "invalid_location": "State and municipality cannot be empty."
+      "invalid_location": "State and municipality cannot be empty.",
+      "cannot_connect": "Could not reach ANP to load the list of locations. Type the state and municipality manually."
     }
   }
 }

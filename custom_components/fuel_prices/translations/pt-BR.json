@@ -3,15 +3,23 @@
     "step": {
       "user": {
         "title": "Fuel Prices",
-        "description": "Informe o estado e o município que deseja acompanhar, como publicados pela ANP (acentos são ignorados).",
+        "description": "Escolha o estado que deseja acompanhar. A lista vem da planilha publicada pela ANP.",
         "data": {
           "state": "Estado",
+          "city": "Município"
+        }
+      },
+      "city": {
+        "title": "Município",
+        "description": "Municípios pesquisados pela ANP em {state}. Cidades não pesquisadas não aparecem na lista.",
+        "data": {
           "city": "Município"
         }
       }
     },
     "error": {
-      "invalid_location": "Estado e município não podem ficar em branco."
+      "invalid_location": "Estado e município não podem ficar em branco.",
+      "cannot_connect": "Não foi possível acessar a ANP para carregar a lista de localidades. Digite o estado e o município manualmente, como a ANP os publica."
     },
     "abort": {
       "already_configured": "Este município já está configurado."
@@ -26,10 +34,18 @@
           "state": "Estado",
           "city": "Município"
         }
+      },
+      "city": {
+        "title": "Município",
+        "description": "Municípios pesquisados pela ANP em {state}.",
+        "data": {
+          "city": "Município"
+        }
       }
     },
     "error": {
-      "invalid_location": "Estado e município não podem ficar em branco."
+      "invalid_location": "Estado e município não podem ficar em branco.",
+      "cannot_connect": "Não foi possível acessar a ANP para carregar a lista de localidades. Digite o estado e o município manualmente."
     }
   }
 }

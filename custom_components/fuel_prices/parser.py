@@ -217,6 +217,47 @@ def translate_unit(raw: object, product: str) -> str:
     return FALLBACK_UNITS.get(product, DEFAULT_UNIT)
 
 
+def list_locations(content: bytes) -> dict[str, list[str]]:
+    """Mapeia estado -> municípios efetivamente pesquisados pela ANP.
+
+    Alimenta os seletores do fluxo de configuração: a ANP pesquisa algumas
+    centenas de municípios, não os 5.570 do país, e digitar um que não está na
+    planilha produzia uma integração que instalava e depois não trazia dado.
+    """
+    workbook = load_workbook(BytesIO(content), read_only=True, data_only=True)
+    try:
+        if SHEET_NAME not in workbook.sheetnames:
+            raise SourceUnavailableError(f"Aba '{SHEET_NAME}' não encontrada.")
+        sheet = workbook[SHEET_NAME]
+
+        head = []
+        for offset, row in enumerate(sheet.iter_rows(values_only=True)):
+            if offset >= HEADER_SEARCH_LIMIT:
+                break
+            head.append(row)
+        header_index, headers = _find_header_row(head)
+
+        i_state = headers.index(COL_STATE)
+        i_city = headers.index(COL_CITY)
+        limit = max(i_state, i_city)
+
+        found: dict[str, set[str]] = {}
+        for row in sheet.iter_rows(min_row=header_index + 2, values_only=True):
+            if len(row) <= limit:
+                continue
+            state = normalize_value(row[i_state])
+            city = normalize_value(row[i_city])
+            if state and city:
+                found.setdefault(state, set()).add(city)
+    finally:
+        workbook.close()
+
+    if not found:
+        raise SourceUnavailableError("Nenhuma localidade encontrada na planilha.")
+
+    return {state: sorted(cities) for state, cities in sorted(found.items())}
+
+
 def _find_header_row(rows: list[tuple]) -> tuple[int, list[str]]:
     """Localiza a linha de cabeçalho em vez de assumir uma posição fixa."""
     for index, row in enumerate(rows):

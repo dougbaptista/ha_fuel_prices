@@ -12,6 +12,7 @@ from custom_components.fuel_prices.parser import (
     coerce_price,
     find_xls_url,
     legacy_unique_ids,
+    list_locations,
     make_unique_id,
     normalize_text,
     parse_workbook,
@@ -156,6 +157,18 @@ class TestParseWorkbook:
         assert glp["period_start"] == "2026-07-19"
         assert glp["period_end"] == "2026-07-25"
         assert glp["stations"] == 7
+
+    def test_list_locations_groups_cities_by_state(self, anp_workbook: bytes) -> None:
+        """Alimenta os seletores do fluxo de configuração."""
+        locais = list_locations(anp_workbook)
+
+        assert set(locais) == {"SANTA CATARINA", "SAO PAULO"}
+        assert locais["SANTA CATARINA"] == ["CRICIUMA", "TUBARAO"]
+        assert locais["SAO PAULO"] == ["TUBARAO"]
+
+    def test_list_locations_normalizes_accents(self, anp_workbook: bytes) -> None:
+        # A linha de Criciúma está acentuada na planilha de teste.
+        assert "CRICIUMA" in list_locations(anp_workbook)["SANTA CATARINA"]
 
     def test_unknown_municipality_raises(self, anp_workbook: bytes) -> None:
         with pytest.raises(MunicipalityNotFoundError):
