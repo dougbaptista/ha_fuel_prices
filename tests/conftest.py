@@ -12,6 +12,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 import types
+from datetime import datetime
 from io import BytesIO
 
 import pytest
@@ -94,14 +95,54 @@ if importlib.util.find_spec("homeassistant") is None:  # pragma: no cover
     _install_homeassistant_stubs()
 
 
+# Colunas exatamente como na planilha publicada pela ANP (verificado contra
+# resumo_semanal_lpc_2026-07-19_2026-07-25.xlsx).
 HEADER = [
+    "DATA INICIAL",
+    "DATA FINAL",
     "ESTADO",
     "MUNICÍPIO",
     "PRODUTO",
+    "NÚMERO DE POSTOS PESQUISADOS",
+    "UNIDADE DE MEDIDA",
     "PREÇO MÉDIO REVENDA",
+    "DESVIO PADRÃO REVENDA",
     "PREÇO MÍNIMO REVENDA",
     "PREÇO MÁXIMO REVENDA",
+    "COEF DE VARIAÇÃO REVENDA",
 ]
+
+PERIOD_START = datetime(2026, 7, 19)
+PERIOD_END = datetime(2026, 7, 25)
+
+
+def anp_row(
+    state: str,
+    city: str,
+    product: str,
+    med: float,
+    minimum: float,
+    maximum: float,
+    *,
+    unit: str = "R$/l",
+    stations: int = 8,
+    period_end: datetime = PERIOD_END,
+) -> list:
+    """Monta uma linha no layout real da planilha da ANP."""
+    return [
+        PERIOD_START,
+        period_end,
+        state,
+        city,
+        product,
+        stations,
+        unit,
+        med,
+        0.1,
+        minimum,
+        maximum,
+        0.02,
+    ]
 
 
 def build_workbook(rows: list[list], *, header_offset: int = 9) -> bytes:
@@ -111,7 +152,7 @@ def build_workbook(rows: list[list], *, header_offset: int = 9) -> bytes:
     sheet.title = "MUNICIPIOS"
 
     for _ in range(header_offset):
-        sheet.append(["LEVANTAMENTO DE PREÇOS"])
+        sheet.append(["LEVANTAMENTO DE PREÇOS DE COMBUSTÍVEIS"])
     sheet.append(HEADER)
     for row in rows:
         sheet.append(row)
@@ -123,14 +164,39 @@ def build_workbook(rows: list[list], *, header_offset: int = 9) -> bytes:
 
 @pytest.fixture
 def anp_workbook() -> bytes:
-    """Planilha de exemplo com acentuação real nos nomes de produto."""
+    """Planilha de exemplo no layout real, com as unidades por produto.
+
+    Os nomes vêm sem acento, como a ANP realmente publica, mas há uma linha
+    acentuada para provar que a normalização cobre os dois casos.
+    """
     return build_workbook(
         [
-            ["SANTA CATARINA", "TUBARÃO", "GASOLINA COMUM", 6.09, 5.89, 6.39],
-            ["SANTA CATARINA", "TUBARÃO", "ÓLEO DIESEL S10", 6.21, 5.99, 6.49],
-            ["SANTA CATARINA", "TUBARÃO", "ETANOL HIDRATADO", 4.55, 4.29, 4.79],
-            ["SANTA CATARINA", "TUBARÃO", "GLP", 102.5, 95.0, 110.0],
-            ["SÃO PAULO", "TUBARÃO", "GASOLINA COMUM", 5.55, 5.19, 5.99],
-            ["SANTA CATARINA", "CRICIÚMA", "GASOLINA COMUM", 6.11, 5.95, 6.45],
+            anp_row("SANTA CATARINA", "TUBARAO", "GASOLINA COMUM", 6.30, 6.26, 6.66),
+            anp_row("SANTA CATARINA", "TUBARAO", "OLEO DIESEL S10", 6.28, 6.28, 6.29),
+            anp_row("SANTA CATARINA", "TUBARAO", "ETANOL HIDRATADO", 4.58, 4.58, 4.59),
+            anp_row(
+                "SANTA CATARINA",
+                "TUBARAO",
+                "GLP",
+                112.14,
+                100.0,
+                120.0,
+                unit="R$/13kg",
+                stations=7,
+            ),
+            anp_row(
+                "SANTA CATARINA",
+                "TUBARAO",
+                "GNV",
+                4.94,
+                4.89,
+                4.96,
+                unit="R$/m³",
+                stations=6,
+            ),
+            anp_row("SAO PAULO", "TUBARAO", "GASOLINA COMUM", 5.55, 5.19, 5.99),
+            # Acentuada de propósito: a ANP publica sem acento hoje, mas a
+            # normalização precisa cobrir uma eventual mudança.
+            anp_row("SANTA CATARINA", "CRICIÚMA", "ÓLEO DIESEL", 6.02, 5.99, 6.19),
         ]
     )

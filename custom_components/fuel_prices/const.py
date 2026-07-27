@@ -61,6 +61,17 @@ FUEL_ICONS: Final = {
     "OLEO DIESEL S10": "mdi:fuel",
 }
 
-# GLP é vendido por quilo; os demais por litro.
-UNIT_BY_FUEL: Final = {"GLP": "BRL/kg"}
+# A planilha traz a coluna "UNIDADE DE MEDIDA"; estes mapas apenas traduzem o
+# rótulo da ANP para exibição. O GLP é cotado por botijão de 13 kg e o GNV por
+# metro cúbico — tratá-los como litro (como até a v1.1.0) exibia dado errado.
+UNIT_TRANSLATIONS: Final = {
+    "R$/L": "BRL/L",
+    "R$/13KG": "BRL/13kg",
+    "R$/M³": "BRL/m³",
+    "R$/M3": "BRL/m³",
+    "R$/KG": "BRL/kg",
+}
+
+# Usados só se a coluna de unidade sumir da planilha.
+FALLBACK_UNITS: Final = {"GLP": "BRL/13kg", "GNV": "BRL/m³"}
 DEFAULT_UNIT: Final = "BRL/L"

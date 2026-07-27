@@ -8,15 +8,17 @@ from custom_components.fuel_prices.const import BASE_URL, FUEL_TYPES
 from custom_components.fuel_prices.parser import (
     MunicipalityNotFoundError,
     SourceUnavailableError,
+    coerce_date,
     coerce_price,
     find_xls_url,
     legacy_unique_id,
     make_unique_id,
     normalize_text,
     parse_workbook,
+    translate_unit,
 )
 
-from .conftest import build_workbook
+from .conftest import anp_row, build_workbook
 
 
 @pytest.mark.parametrize(
@@ -62,17 +64,53 @@ def test_coerce_price(raw: object, expected: float | None) -> None:
     assert coerce_price(raw) == expected
 
 
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("2026-07-25 00:00:00", "2026-07-25"),
+        ("2026-07-25", "2026-07-25"),
+        ("25/07/2026", "2026-07-25"),
+        (None, None),
+        ("qualquer coisa", None),
+    ],
+)
+def test_coerce_date(raw: object, expected: str | None) -> None:
+    assert coerce_date(raw) == expected
+
+
+@pytest.mark.parametrize(
+    ("raw", "product", "expected"),
+    [
+        ("R$/l", "GASOLINA COMUM", "BRL/L"),
+        ("R$/13kg", "GLP", "BRL/13kg"),
+        ("R$/m³", "GNV", "BRL/m³"),
+        # Sem a coluna, cai no padrão correto por produto.
+        (None, "GLP", "BRL/13kg"),
+        (None, "GNV", "BRL/m³"),
+        (None, "GASOLINA COMUM", "BRL/L"),
+        ("unidade nova", "GLP", "BRL/13kg"),
+    ],
+)
+def test_translate_unit(raw: object, product: str, expected: str) -> None:
+    assert translate_unit(raw, product) == expected
+
+
 class TestParseWorkbook:
-    def test_extracts_accented_products_under_normalized_keys(
-        self, anp_workbook: bytes
-    ) -> None:
+    def test_extracts_prices_under_normalized_keys(self, anp_workbook: bytes) -> None:
         prices = parse_workbook(anp_workbook, "SANTA CATARINA", "TUBARAO")
 
-        # Regressão: até a v1.1.0 a chave era gravada crua ("ÓLEO DIESEL S10"),
-        # nunca casando com a lista normalizada de combustíveis.
-        assert "OLEO DIESEL S10" in prices
         assert set(prices) <= set(FUEL_TYPES)
-        assert prices["GASOLINA COMUM"] == {"min": 5.89, "med": 6.09, "max": 6.39}
+        gasoline = prices["GASOLINA COMUM"]
+        assert (gasoline["min"], gasoline["med"], gasoline["max"]) == (
+            6.26,
+            6.30,
+            6.66,
+        )
+
+    def test_normalizes_accented_products(self, anp_workbook: bytes) -> None:
+        """A ANP publica sem acento hoje, mas não podemos depender disso."""
+        prices = parse_workbook(anp_workbook, "SANTA CATARINA", "CRICIUMA")
+        assert "OLEO DIESEL" in prices
 
     def test_matches_accented_input_from_the_user(self, anp_workbook: bytes) -> None:
         assert parse_workbook(anp_workbook, "Santa Catarina", "Tubarão")
@@ -81,13 +119,28 @@ class TestParseWorkbook:
         prices = parse_workbook(anp_workbook, "SAO PAULO", "TUBARAO")
         assert prices["GASOLINA COMUM"]["med"] == 5.55
 
+    def test_reads_unit_from_the_sheet(self, anp_workbook: bytes) -> None:
+        """GLP é cotado por botijão de 13 kg e GNV por m³, não por litro."""
+        prices = parse_workbook(anp_workbook, "SANTA CATARINA", "TUBARAO")
+        assert prices["GLP"]["unit"] == "BRL/13kg"
+        assert prices["GNV"]["unit"] == "BRL/m³"
+        assert prices["GASOLINA COMUM"]["unit"] == "BRL/L"
+
+    def test_exposes_reference_period_and_sample_size(
+        self, anp_workbook: bytes
+    ) -> None:
+        glp = parse_workbook(anp_workbook, "SANTA CATARINA", "TUBARAO")["GLP"]
+        assert glp["period_start"] == "2026-07-19"
+        assert glp["period_end"] == "2026-07-25"
+        assert glp["stations"] == 7
+
     def test_unknown_municipality_raises(self, anp_workbook: bytes) -> None:
         with pytest.raises(MunicipalityNotFoundError):
             parse_workbook(anp_workbook, "SANTA CATARINA", "CIDADE INEXISTENTE")
 
     def test_header_position_is_detected_not_hardcoded(self) -> None:
         content = build_workbook(
-            [["SANTA CATARINA", "TUBARÃO", "GNV", 4.2, 4.0, 4.4]],
+            [anp_row("SANTA CATARINA", "TUBARAO", "GNV", 4.2, 4.0, 4.4)],
             header_offset=3,
         )
         prices = parse_workbook(content, "SANTA CATARINA", "TUBARAO")

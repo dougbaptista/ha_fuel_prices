@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import re
 import unicodedata
+from datetime import date, datetime
 from functools import lru_cache
 from io import BytesIO
 from urllib.parse import urljoin, urlparse
@@ -17,7 +18,13 @@ from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 from openpyxl import load_workbook
 
-from .const import ALLOWED_HOST_SUFFIX, MAX_DOWNLOAD_BYTES
+from .const import (
+    ALLOWED_HOST_SUFFIX,
+    DEFAULT_UNIT,
+    FALLBACK_UNITS,
+    MAX_DOWNLOAD_BYTES,
+    UNIT_TRANSLATIONS,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,6 +38,15 @@ COL_MIN = "PRECO MINIMO REVENDA"
 COL_MAX = "PRECO MAXIMO REVENDA"
 
 REQUIRED_COLUMNS = (COL_STATE, COL_CITY, COL_PRODUCT, COL_MED, COL_MIN, COL_MAX)
+
+# Enriquecem os atributos quando presentes, mas não quebram o parsing se a ANP
+# reorganizar a planilha.
+COL_UNIT = "UNIDADE DE MEDIDA"
+COL_STATIONS = "NUMERO DE POSTOS PESQUISADOS"
+COL_PERIOD_START = "DATA INICIAL"
+COL_PERIOD_END = "DATA FINAL"
+
+OPTIONAL_COLUMNS = (COL_UNIT, COL_STATIONS, COL_PERIOD_START, COL_PERIOD_END)
 
 # Quantas linhas do topo inspecionar procurando o cabeçalho real.
 HEADER_SEARCH_LIMIT = 25
@@ -151,6 +167,50 @@ def coerce_price(raw: object) -> float | None:
         return None
 
 
+def coerce_int(raw: object) -> int | None:
+    """Converte um valor de célula em ``int`` quando possível."""
+    if raw is None:
+        return None
+    try:
+        return int(float(str(raw).strip().replace(",", ".")))
+    except ValueError:
+        return None
+
+
+def coerce_date(raw: object) -> str | None:
+    """Devolve a data da célula em ISO (``AAAA-MM-DD``)."""
+    if raw is None:
+        return None
+    if isinstance(raw, datetime):
+        return raw.date().isoformat()
+    if isinstance(raw, date):
+        return raw.isoformat()
+    text = str(raw).strip()
+    if not text:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(text, fmt).date().isoformat()
+        except ValueError:
+            continue
+    return None
+
+
+def translate_unit(raw: object, product: str) -> str:
+    """Traduz a unidade publicada pela ANP para exibição no Home Assistant.
+
+    A planilha informa ``R$/l``, ``R$/13kg`` (botijão de GLP) e ``R$/m³``
+    (GNV); tratar tudo como litro exibia valores enganosos.
+    """
+    if raw is not None:
+        key = str(raw).strip().upper()
+        if key in UNIT_TRANSLATIONS:
+            return UNIT_TRANSLATIONS[key]
+        if key:
+            _LOGGER.debug("Unidade desconhecida na planilha: %r", key)
+    return FALLBACK_UNITS.get(product, DEFAULT_UNIT)
+
+
 def _find_header_row(rows: list[tuple]) -> tuple[int, list[str]]:
     """Localiza a linha de cabeçalho em vez de assumir uma posição fixa."""
     for index, row in enumerate(rows):
@@ -199,9 +259,22 @@ def parse_workbook(content: bytes, state: str, city: str) -> dict[str, dict]:
                 )
             col_map[column] = headers.index(column)
 
+        optional_map = {
+            column: headers.index(column)
+            for column in OPTIONAL_COLUMNS
+            if column in headers
+        }
+
         state_filter = normalize_text(state)
         city_filter = normalize_text(city)
         max_index = max(col_map.values())
+
+        def optional(row: tuple, column: str) -> object:
+            """Lê uma coluna opcional sem estourar em linhas curtas."""
+            index = optional_map.get(column)
+            if index is None or index >= len(row):
+                return None
+            return row[index]
 
         prices: dict[str, dict] = {}
         for row in sheet.iter_rows(min_row=header_index + 2, values_only=True):
@@ -222,6 +295,10 @@ def parse_workbook(content: bytes, state: str, city: str) -> dict[str, dict]:
                 "min": coerce_price(row[col_map[COL_MIN]]),
                 "med": coerce_price(row[col_map[COL_MED]]),
                 "max": coerce_price(row[col_map[COL_MAX]]),
+                "unit": translate_unit(optional(row, COL_UNIT), product),
+                "stations": coerce_int(optional(row, COL_STATIONS)),
+                "period_start": coerce_date(optional(row, COL_PERIOD_START)),
+                "period_end": coerce_date(optional(row, COL_PERIOD_END)),
             }
     finally:
         workbook.close()

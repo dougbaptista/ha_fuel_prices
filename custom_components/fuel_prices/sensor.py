@@ -14,12 +14,12 @@ from .const import (
     BASE_URL,
     DEFAULT_UNIT,
     DOMAIN,
+    FALLBACK_UNITS,
     FUEL_ICONS,
     FUEL_TYPES,
     MAX_DATA_AGE,
     PRICE_TYPE_NAMES,
     PRICE_TYPES,
-    UNIT_BY_FUEL,
 )
 from .coordinator import FuelPriceCoordinator
 from .parser import make_unique_id
@@ -59,9 +59,13 @@ class FuelPriceSensor(CoordinatorEntity[FuelPriceCoordinator], SensorEntity):
         self._attr_unique_id = make_unique_id(
             coordinator.entry.entry_id, fuel_type, price_type
         )
-        self._attr_native_unit_of_measurement = UNIT_BY_FUEL.get(
-            fuel_type, DEFAULT_UNIT
-        )
+        # A unidade vem da própria planilha (GLP é por botijão de 13 kg, GNV
+        # por m³). Fixada na construção para não variar durante a vida da
+        # entidade, o que invalidaria as estatísticas de longo prazo.
+        initial = (coordinator.data or {}).get(fuel_type) or {}
+        self._attr_native_unit_of_measurement = initial.get(
+            "unit"
+        ) or FALLBACK_UNITS.get(fuel_type, DEFAULT_UNIT)
         self._attr_icon = FUEL_ICONS.get(fuel_type, "mdi:cash")
         self._attr_name = (
             f"Preço {fuel_type.title()} ({coordinator.city_name.title()})"
@@ -82,12 +86,20 @@ class FuelPriceSensor(CoordinatorEntity[FuelPriceCoordinator], SensorEntity):
 
     @property
     def _is_stale(self) -> bool:
-        """Indica se o dado em cache é antigo demais para ser confiável.
+        """Indica se o dado é antigo demais para ser confiável.
 
-        Os dados da ANP são semanais; passado ``MAX_DATA_AGE`` sem uma coleta
-        bem-sucedida é melhor sinalizar indisponibilidade do que seguir
-        publicando um preço desatualizado como se fosse atual.
+        Usa o fim do período de referência publicado na planilha, que é o que
+        realmente data o preço; a hora da coleta é só o fallback. Os dados da
+        ANP são semanais, então passado ``MAX_DATA_AGE`` é melhor sinalizar
+        indisponibilidade do que publicar um preço velho como se fosse atual.
         """
+        reference = (self._price_info or {}).get("period_end")
+        if reference:
+            parsed = dt_util.parse_date(reference)
+            if parsed is not None:
+                age = dt_util.utcnow().date() - parsed
+                return age > MAX_DATA_AGE
+
         last = self.coordinator.last_successful_update
         if last is None:
             return True
@@ -119,6 +131,11 @@ class FuelPriceSensor(CoordinatorEntity[FuelPriceCoordinator], SensorEntity):
             "max": price_info.get("max"),
             "state_name": self.coordinator.state_name,
             "city_name": self.coordinator.city_name,
+            # Quantos postos a ANP pesquisou: amostra pequena significa preço
+            # menos representativo.
+            "surveyed_stations": price_info.get("stations"),
+            "period_start": price_info.get("period_start"),
+            "period_end": price_info.get("period_end"),
             "last_successful_update": last.isoformat() if last else None,
             "stale": self._is_stale,
         }

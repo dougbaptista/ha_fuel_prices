@@ -83,10 +83,11 @@ Contribuições são bem-vindas! Se você tiver sugestões, encontrar bugs ou de
 
 **Correções de bugs:**
 
-- **Diesel e Etanol voltam a funcionar.** Os nomes de produto vindos da planilha
-  eram gravados com acento (`ÓLEO DIESEL S10`) mas procurados sem acento
-  (`OLEO DIESEL S10`), então esses sensores nunca recebiam valor. Agora o nome
-  do produto passa pela mesma normalização de estado e município.
+- **Unidades corrigidas para GLP e GNV.** O GLP era exibido como preço por
+  litro (e depois por quilo), mas a ANP o cota **por botijão de 13 kg** — daí
+  valores como `R$ 112`. O GNV era exibido por litro, mas é cotado **por m³**.
+  A unidade agora é lida da coluna `UNIDADE DE MEDIDA` da própria planilha, em
+  vez de ser presumida.
 
 - **O fluxo de opções passa a ter efeito.** As opções eram salvas em
   `entry.options`, mas o código só lia `entry.data` — editar estado/município
@@ -124,10 +125,17 @@ Contribuições são bem-vindas! Se você tiver sugestões, encontrar bugs ou de
   município inexistente) agora produz uma mensagem específica. Antes, todas
   apareciam como "Nenhum dado retornado", apontando para a causa errada.
 - **Dados obsoletos são sinalizados.** O último valor válido continua sendo
-  preservado durante falhas passageiras, mas após 14 dias sem coleta
-  bem-sucedida as entidades ficam indisponíveis em vez de publicar um preço
-  antigo como se fosse atual. Os atributos `last_successful_update` e `stale`
-  expõem a idade do dado.
+  preservado durante falhas passageiras, mas após 14 dias as entidades ficam
+  indisponíveis em vez de publicar um preço antigo como se fosse atual. A idade
+  é medida pelo período de referência publicado na planilha (`period_start` /
+  `period_end`), não pela hora do download.
+- **Novos atributos:** `surveyed_stations` (quantos postos a ANP pesquisou —
+  amostra pequena significa preço menos representativo), `period_start`,
+  `period_end`, `last_successful_update` e `stale`.
+- **Normalização defensiva** de estado, município e produto. A ANP hoje publica
+  esses campos sem acento; a normalização garante que a integração continue
+  funcionando caso isso mude, e aceita entrada acentuada do usuário
+  (`Tubarão`, `Criciúma`) na configuração.
 - `state_class: measurement` e `native_unit_of_measurement`, habilitando
   estatísticas de longo prazo (gráficos históricos).
 - Todos os sensores agrupados sob um dispositivo por município.
