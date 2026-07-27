@@ -66,15 +66,20 @@ Ou adicione o repositório com um clique:
 ## Configuração
 
 1. Procure por **Fuel Prices** em **Configurações > Dispositivos e Serviços**.
-2. O fluxo tem dois passos: escolha o **estado** e depois o **município**.
+2. O fluxo tem três passos: **estado**, **município** e **combustíveis**.
 
-As duas listas são montadas a partir da planilha da ANP, então só aparecem
-localidades que ela realmente pesquisa — atualmente **388 municípios** em todo
-o país. Se a sua cidade não estiver na lista, é porque a ANP não coleta preços
-nela; escolha o município pesquisado mais próximo.
+As listas são montadas a partir da planilha da ANP, então só aparece o que ela
+realmente publica — atualmente **388 municípios** em todo o país. Se a sua
+cidade não estiver na lista, é porque a ANP não coleta preços nela; escolha o
+município pesquisado mais próximo.
 
-Para trocar de localidade depois, use **Configurar** na integração. As
-entidades e o histórico são preservados.
+No último passo, os combustíveis já vêm marcados conforme o que existe naquele
+município (nem todos têm GNV, por exemplo). Cada combustível selecionado gera
+três sensores: mínimo, médio e máximo.
+
+Para mudar qualquer coisa depois, use **Configurar** na integração. As entidades
+e o histórico são preservados; combustíveis desmarcados têm suas entidades
+removidas.
 
 ## Contribuição
 
