@@ -56,10 +56,12 @@ Este componente personalizado para o Home Assistant busca e exibe os preços de 
 3. **Instalar o Componente:**  
    Após adicionar o repositório, volte à lista de integrações em HACS, localize "Fuel Prices" e clique em "Install".
 
-[![HACS Repository Badge](https://camo.githubusercontent.com/8cec5af6ba93659beb5352741334ef3bbee70c4cb725f20832a1b897dfb8fc5f/68747470733a2f2f6d792e686f6d652d617373697374616e742e696f2f6261646765732f686163735f7265706f7369746f72792e737667)](https://my.home-assistant.io/redirect/hacs_repository/?owner=dougbaptista&repository=ha_fuel_prices&category=Integration)   
-
-5. **Reinicie o Home Assistant:**  
+4. **Reinicie o Home Assistant:**  
    Após a instalação, reinicie o Home Assistant para que o componente seja carregado.
+
+Ou adicione o repositório com um clique:
+
+[![Abrir no HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=dougbaptista&repository=ha_fuel_prices&category=Integration)
 
 ## Configuração
 
