@@ -32,14 +32,13 @@ Este componente personalizado para o Home Assistant busca e exibe os preços de 
 ## Pré-requisitos
 
 - **Home Assistant:**  
-  Este componente é desenvolvido para o Home Assistant (versão 2021.XX ou superior).
+  Versão **2024.11.0** ou superior.
 
 - **HACS:**  
   É recomendado instalar o componente via HACS.
 
 - **Dependências Python:**  
-  As dependências são definidas no `manifest.json` e incluem:
-  - `aiohttp`
+  Instaladas automaticamente pelo Home Assistant a partir do `manifest.json`:
   - `openpyxl`
   - `beautifulsoup4`
 
@@ -78,6 +77,77 @@ Contribuições são bem-vindas! Se você tiver sugestões, encontrar bugs ou de
 
 ## Changelog
 
+### v1.2.0
+
+**⚠️ Atualização de manutenção — leia a nota de migração abaixo.**
+
+**Correções de bugs:**
+
+- **Diesel e Etanol voltam a funcionar.** Os nomes de produto vindos da planilha
+  eram gravados com acento (`ÓLEO DIESEL S10`) mas procurados sem acento
+  (`OLEO DIESEL S10`), então esses sensores nunca recebiam valor. Agora o nome
+  do produto passa pela mesma normalização de estado e município.
+
+- **O fluxo de opções passa a ter efeito.** As opções eram salvas em
+  `entry.options`, mas o código só lia `entry.data` — editar estado/município
+  não mudava nada. A configuração efetiva agora é `data + options` e a
+  integração se recarrega automaticamente ao salvar.
+
+- **`unique_id` sem colisão.** O identificador era `combustível_tipo_município`,
+  que colidia entre municípios homônimos de estados diferentes. Agora é
+  derivado do `entry_id`. **A migração é automática** e preserva o histórico
+  das entidades existentes.
+
+**Desempenho:**
+
+- **O event loop não trava mais.** `load_workbook`, a varredura das ~40 mil
+  linhas e o parsing HTML rodavam direto na corrotina, congelando todo o Home
+  Assistant por segundos a cada atualização. Agora rodam em executor.
+- Normalização de texto com cache e filtro pelo município antes do estado,
+  reduzindo drasticamente o trabalho por linha.
+- Logging preguiçoso (`%s`), eliminando formatação de string dentro do laço
+  principal mesmo com DEBUG desligado.
+
+**Segurança:**
+
+- **Teto de download de 50 MB**, verificado por `Content-Length` e durante a
+  leitura em blocos, evitando exaustão de memória por arquivo anômalo.
+- **Validação do link extraído da página:** resolução correta com `urljoin`,
+  exigência de HTTPS e restrição ao domínio `gov.br`.
+- **Dependências fixadas** no `manifest.json`; `aiohttp` removido de lá, já que
+  é dependência do próprio core (declará-la sem versão permitia atualizar a
+  biblioteca de rede do Home Assistant durante a instalação).
+
+**Qualidade e diagnóstico:**
+
+- Cada falha (rede, HTTP, layout do site, aba ausente, coluna ausente,
+  município inexistente) agora produz uma mensagem específica. Antes, todas
+  apareciam como "Nenhum dado retornado", apontando para a causa errada.
+- **Dados obsoletos são sinalizados.** O último valor válido continua sendo
+  preservado durante falhas passageiras, mas após 14 dias sem coleta
+  bem-sucedida as entidades ficam indisponíveis em vez de publicar um preço
+  antigo como se fosse atual. Os atributos `last_successful_update` e `stale`
+  expõem a idade do dado.
+- `state_class: measurement` e `native_unit_of_measurement`, habilitando
+  estatísticas de longo prazo (gráficos históricos).
+- Todos os sensores agrupados sob um dispositivo por município.
+- Fluxo de configuração valida a entrada e impede cadastrar o mesmo município
+  duas vezes.
+- Traduções completas (`en` + `pt-BR`), incluindo o fluxo de opções.
+- CI deixou de mascarar falhas com `|| true` e ganhou validação `hassfest` e
+  HACS; a suíte de testes agora cobre o parsing real da planilha.
+
+#### Nota de migração
+
+O diretório da integração foi renomeado de `custom_components/ha_fuel_prices`
+para `custom_components/fuel_prices`, para coincidir com o domínio declarado no
+`manifest.json` — requisito do Home Assistant e do `hassfest`.
+
+Suas configurações e o histórico são preservados (o domínio `fuel_prices` não
+mudou). Se você instalou via HACS, atualize normalmente e **remova a pasta
+antiga** `custom_components/ha_fuel_prices` caso ela permaneça, antes de
+reiniciar o Home Assistant.
+
 ### v1.1.0
 
 **Melhorias de desempenho e estabilidade:**
@@ -104,7 +174,7 @@ Contribuições são bem-vindas! Se você tiver sugestões, encontrar bugs ou de
 
 Se você deseja contribuir ou rodar verificações locais, siga estas instruções recomendadas.
 
-- Instale Python 3.11 (recomendado para compatibilidade com ferramentas de lint/format).
+- Instale Python 3.12 (mesma versão usada pelo CI).
 - Crie e ative um ambiente virtual:
 
 ```powershell
@@ -116,8 +186,7 @@ python -m venv .venv
 
 ```powershell
 python -m pip install --upgrade pip
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
+pip install -r requirements.txt -r requirements-dev.txt
 python -m pip install pre-commit
 ```
 
@@ -135,5 +204,18 @@ pytest -q
 ```
 
 Observações:
-- O CI do repositório roda em Python 3.11; usar essa versão localmente evita incompatibilidades com `black`/`pre-commit`.
-- Não é necessário instalar `homeassistant-core` localmente apenas para rodar os testes unitários básicos — os testes usam mocks para permitir execução rápida.
+- O CI do repositório roda em Python 3.12 e **reprova** o build em qualquer erro de `black`, `isort`, `flake8` ou `pytest`.
+- Toda a lógica de scraping e parsing vive em `custom_components/fuel_prices/parser.py`, que não importa nada do Home Assistant. Isso permite testá-la diretamente, com planilhas XLSX geradas em memória pelos testes.
+- Não é necessário instalar `homeassistant` para rodar a suíte: `tests/conftest.py` instala stubs mínimos **apenas se** o pacote não estiver presente, então instalar o HA de verdade (ou o `pytest-homeassistant-custom-component`) continua funcionando.
+
+### Estrutura
+
+```
+custom_components/fuel_prices/
+├── __init__.py       # setup/unload da entrada, listener de opções, migração de unique_id
+├── config_flow.py    # fluxos de configuração e opções
+├── const.py          # constantes e limites
+├── coordinator.py    # I/O HTTP, timeouts, teto de download, ponte com o executor
+├── parser.py         # lógica pura: scraping, parsing do XLSX, normalização
+└── sensor.py         # entidades
+```

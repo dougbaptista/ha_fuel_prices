@@ -1,0 +1,35 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Fuel Prices",
+        "description": "Enter the state and municipality to track, exactly as published by ANP (accents are ignored).",
+        "data": {
+          "state": "State",
+          "city": "Municipality"
+        }
+      }
+    },
+    "error": {
+      "invalid_location": "State and municipality cannot be empty."
+    },
+    "abort": {
+      "already_configured": "This municipality is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Fuel Prices options",
+        "description": "Change the tracked location. The integration reloads after saving.",
+        "data": {
+          "state": "State",
+          "city": "Municipality"
+        }
+      }
+    },
+    "error": {
+      "invalid_location": "State and municipality cannot be empty."
+    }
+  }
+}

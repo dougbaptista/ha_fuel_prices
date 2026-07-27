@@ -1,1 +1,0 @@
-DOMAIN = "fuel_prices"

@@ -1,0 +1,35 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Fuel Prices",
+        "description": "Informe o estado e o município que deseja acompanhar, como publicados pela ANP (acentos são ignorados).",
+        "data": {
+          "state": "Estado",
+          "city": "Município"
+        }
+      }
+    },
+    "error": {
+      "invalid_location": "Estado e município não podem ficar em branco."
+    },
+    "abort": {
+      "already_configured": "Este município já está configurado."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opções do Fuel Prices",
+        "description": "Altere a localidade acompanhada. A integração é recarregada ao salvar.",
+        "data": {
+          "state": "Estado",
+          "city": "Município"
+        }
+      }
+    },
+    "error": {
+      "invalid_location": "Estado e município não podem ficar em branco."
+    }
+  }
+}

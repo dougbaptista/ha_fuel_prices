@@ -1,6 +1,9 @@
-pytest==7.4.0
-pytest-asyncio==0.21.0
-# Use a black version compatible with Python 3.11 in CI
-black==23.1.0
-isort==5.12.0
-flake8==6.0.0
+pytest==8.3.4
+black==24.10.0
+isort==5.13.2
+flake8==7.1.1
+
+# Fornecidos pelo Home Assistant em produção (por isso fora do manifest e do
+# requirements.txt), mas necessários para importar o pacote nos testes.
+aiohttp>=3.9
+voluptuous>=0.13

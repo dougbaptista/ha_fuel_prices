@@ -1,20 +1,8 @@
 {
   "name": "Combustível Brasil Home Assistant Integration",
   "content_in_root": false,
-  "domain": "fuel_prices",
   "country": "BR",
-  "homeassistant": "2023.1.0",
+  "homeassistant": "2024.11.0",
   "render_readme": true,
-  "zip_release": false,
-  "filename": "custom_components/ha_fuel_prices",
-  "tags": [
-    "Integration",
-    "Fuel Prices",
-    "Brazil",
-    "Home Assistant"
-  ],
-  "authors": [
-    "@dougbaptista"
-  ],
-  "iot_class": "cloud_polling"
+  "zip_release": false
 }
