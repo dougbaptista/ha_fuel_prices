@@ -20,6 +20,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
+          # ensure pre-commit and test deps are available
+          python -m pip install pre-commit
       - name: Run formatting check
         run: |
           black --check . || true

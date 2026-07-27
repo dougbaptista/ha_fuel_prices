@@ -1,7 +1,8 @@
-from homeassistant import config_entries
 import voluptuous as vol
+from homeassistant import config_entries
 
 from .const import DOMAIN
+
 
 class FuelPricesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Configuração do fluxo de integração para preços de combustíveis."""
