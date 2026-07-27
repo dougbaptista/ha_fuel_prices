@@ -104,10 +104,16 @@ def make_unique_id(entry_id: str, fuel_type: str, price_type: str) -> str:
     return f"{entry_id}_{slug}"
 
 
-def legacy_unique_id(fuel_type: str, price_type: str, city: str) -> str:
-    """Reproduz o unique_id usado até a v1.1.0, para migração do registro."""
-    base = f"{fuel_type}_{price_type}_{city}"
-    return normalize_text(base).lower().replace(" ", "_")
+def legacy_unique_ids(fuel_type: str, price_type: str, city: str) -> tuple[str, ...]:
+    """Formatos históricos de unique_id, para migração do registro.
+
+    Duas variantes circularam antes da v1.2.0: uma prefixada com o domínio
+    (a que existe nas instalações reais) e outra sem prefixo. Ambas precisam
+    ser reconhecidas, senão as entidades antigas ficam órfãs e o histórico
+    é perdido.
+    """
+    base = normalize_text(f"{fuel_type}_{price_type}_{city}").lower().replace(" ", "_")
+    return (f"fuel_prices_{base}", base)
 
 
 def find_xls_url(html: str, base_url: str) -> str:

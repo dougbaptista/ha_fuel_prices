@@ -11,7 +11,7 @@ from custom_components.fuel_prices.parser import (
     coerce_date,
     coerce_price,
     find_xls_url,
-    legacy_unique_id,
+    legacy_unique_ids,
     make_unique_id,
     normalize_text,
     parse_workbook,
@@ -41,9 +41,32 @@ def test_make_unique_id_is_stable_and_scoped_to_entry() -> None:
     assert uid != make_unique_id("def456", "GASOLINA COMUM", "med")
 
 
-def test_legacy_unique_id_matches_v1_1_0_format() -> None:
-    assert legacy_unique_id("GASOLINA COMUM", "med", "TUBARAO") == (
-        "gasolina_comum_med_tubarao"
+# Amostra retirada do core.entity_registry de uma instalação real (21
+# entidades). A migração precisa reconhecer exatamente estes identificadores,
+# senão o histórico dos sensores existentes é perdido.
+REAL_LEGACY_IDS = [
+    ("ETANOL HIDRATADO", "max", "fuel_prices_etanol_hidratado_max_tubarao"),
+    ("GASOLINA ADITIVADA", "med", "fuel_prices_gasolina_aditivada_med_tubarao"),
+    ("GASOLINA COMUM", "min", "fuel_prices_gasolina_comum_min_tubarao"),
+    ("GLP", "med", "fuel_prices_glp_med_tubarao"),
+    ("GNV", "max", "fuel_prices_gnv_max_tubarao"),
+    ("OLEO DIESEL", "med", "fuel_prices_oleo_diesel_med_tubarao"),
+    ("OLEO DIESEL S10", "min", "fuel_prices_oleo_diesel_s10_min_tubarao"),
+]
+
+
+@pytest.mark.parametrize(("fuel", "price_type", "expected"), REAL_LEGACY_IDS)
+def test_legacy_ids_cover_real_installations(
+    fuel: str, price_type: str, expected: str
+) -> None:
+    assert expected in legacy_unique_ids(fuel, price_type, "TUBARAO")
+
+
+def test_legacy_ids_cover_both_historical_formats() -> None:
+    ids = legacy_unique_ids("GASOLINA COMUM", "med", "TUBARAO")
+    assert ids == (
+        "fuel_prices_gasolina_comum_med_tubarao",  # v1.0.x, em produção
+        "gasolina_comum_med_tubarao",  # v1.1.0, apenas no git
     )
 
 

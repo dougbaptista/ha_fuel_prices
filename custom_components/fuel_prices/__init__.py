@@ -10,7 +10,7 @@ from homeassistant.helpers import entity_registry as er
 
 from .const import CONF_CITY, DEFAULT_CITY, DOMAIN, FUEL_TYPES, PLATFORMS, PRICE_TYPES
 from .coordinator import FuelPriceCoordinator
-from .parser import legacy_unique_id, make_unique_id
+from .parser import legacy_unique_ids, make_unique_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,15 +51,22 @@ def _async_migrate_unique_ids(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """
     registry = er.async_get(hass)
     city = entry.data.get(CONF_CITY, DEFAULT_CITY)
+    migrated = 0
 
     for fuel in FUEL_TYPES:
         for price_type in PRICE_TYPES:
-            old_id = legacy_unique_id(fuel, price_type, city)
-            entity_id = registry.async_get_entity_id("sensor", DOMAIN, old_id)
-            if entity_id is None:
-                continue
             new_id = make_unique_id(entry.entry_id, fuel, price_type)
             if registry.async_get_entity_id("sensor", DOMAIN, new_id):
-                continue
-            _LOGGER.debug("Migrando unique_id %s -> %s", old_id, new_id)
-            registry.async_update_entity(entity_id, new_unique_id=new_id)
+                continue  # já migrado
+
+            for old_id in legacy_unique_ids(fuel, price_type, city):
+                entity_id = registry.async_get_entity_id("sensor", DOMAIN, old_id)
+                if entity_id is None:
+                    continue
+                _LOGGER.debug("Migrando unique_id %s -> %s", old_id, new_id)
+                registry.async_update_entity(entity_id, new_unique_id=new_id)
+                migrated += 1
+                break
+
+    if migrated:
+        _LOGGER.info("Migradas %d entidades para o novo unique_id.", migrated)
