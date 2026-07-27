@@ -88,7 +88,13 @@ Contribuições são bem-vindas! Se você tiver sugestões, encontrar bugs ou de
 
 - **Remoção do pandas:** Substituído por leitura direta com `openpyxl` em modo `read_only`. Reduz significativamente o consumo de memória e o tempo de inicialização, especialmente em dispositivos como Raspberry Pi.
 
+- **Leitura em memória do XLSX:** O arquivo XLSX agora é processado em memória (`BytesIO`) evitando gravação em disco temporário.
+
 - **Preservação do histórico:** O sensor agora mantém o último valor válido quando os dados estão indisponíveis (erro de rede, arquivo corrompido, valor inválido). Isso evita "buracos" no histórico com estados `unknown/unavailable`.
+
+- **Sessão HTTP reutilizável e timeouts:** Usa a sessão HTTP do Home Assistant (`async_get_clientsession`) com timeout, melhorando estabilidade e integração.
+
+- **Edição pós-instalação:** Adicionado `Options Flow` para permitir editar `estado` e `município` depois da criação da integração.
 
 ### v1.0.0
 

@@ -6,6 +6,7 @@ DOMAIN = "fuel_prices"
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Configuração inicial da integração."""
+    hass.data.setdefault(DOMAIN, {})
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
     return True
 
@@ -16,4 +17,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType):
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Descarrega uma entrada de configuração."""
     await hass.config_entries.async_forward_entry_unload(entry, "sensor")
+    # Remover dados armazenados durante setup
+    hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
     return True

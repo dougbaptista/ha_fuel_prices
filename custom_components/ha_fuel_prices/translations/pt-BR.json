@@ -3,9 +3,10 @@
   "step": {
     "user": {
       "title": "Configurar Fuel Prices",
-      "description": "Selecione o estado para acompanhar os preços.",
+      "description": "Selecione o estado e município para acompanhar os preços.",
       "data": {
-        "state": "Estado"
+        "state": "Estado",
+        "city": "Município"
       }
     }
   }
