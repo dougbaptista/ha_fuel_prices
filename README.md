@@ -99,3 +99,41 @@ Contribuições são bem-vindas! Se você tiver sugestões, encontrar bugs ou de
 ### v1.0.0
 
 - Versão inicial com busca de preços da ANP por município.
+
+## Desenvolvimento
+
+Se você deseja contribuir ou rodar verificações locais, siga estas instruções recomendadas.
+
+- Instale Python 3.11 (recomendado para compatibilidade com ferramentas de lint/format).
+- Crie e ative um ambiente virtual:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+- Atualize o pip e instale dependências de desenvolvimento:
+
+```powershell
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+python -m pip install pre-commit
+```
+
+- Rode os hooks do pre-commit (formatação e lint):
+
+```powershell
+pre-commit install
+pre-commit run --all-files
+```
+
+- Rode os testes:
+
+```powershell
+pytest -q
+```
+
+Observações:
+- O CI do repositório roda em Python 3.11; usar essa versão localmente evita incompatibilidades com `black`/`pre-commit`.
+- Não é necessário instalar `homeassistant-core` localmente apenas para rodar os testes unitários básicos — os testes usam mocks para permitir execução rápida.
