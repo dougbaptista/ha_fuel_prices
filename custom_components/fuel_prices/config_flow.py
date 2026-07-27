@@ -13,9 +13,17 @@ from homeassistant.helpers.selector import (
     SelectSelectorMode,
 )
 
-from .const import CONF_CITY, CONF_STATE, DEFAULT_CITY, DEFAULT_STATE, DOMAIN
-from .coordinator import async_fetch_locations
-from .parser import normalize_text
+from .const import (
+    CONF_CITY,
+    CONF_FUELS,
+    CONF_STATE,
+    DEFAULT_CITY,
+    DEFAULT_STATE,
+    DOMAIN,
+    FUEL_TYPES,
+)
+from .coordinator import async_fetch_workbook, async_fuels_available
+from .parser import list_locations, normalize_text
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,14 +54,23 @@ class LocationFlowMixin:
     """Passos compartilhados entre a configuração inicial e as opções."""
 
     _locations: dict[str, list[str]] | None = None
+    _content: bytes | None = None
     _state: str | None = None
+    _city: str | None = None
 
     async def _async_load_locations(self) -> str | None:
-        """Baixa a lista de localidades. Devolve a chave do erro, se houver."""
+        """Baixa a planilha uma vez e extrai as localidades.
+
+        O conteúdo fica guardado para o passo dos combustíveis, evitando um
+        segundo download durante o mesmo fluxo.
+        """
         if self._locations is not None:
             return None
         try:
-            self._locations = await async_fetch_locations(self.hass)
+            self._content = await async_fetch_workbook(self.hass)
+            self._locations = await self.hass.async_add_executor_job(
+                list_locations, self._content
+            )
         except Exception:  # noqa: BLE001 - qualquer falha cai no modo texto
             _LOGGER.warning(
                 "Não foi possível obter a lista de localidades da ANP; "
@@ -65,6 +82,32 @@ class LocationFlowMixin:
 
     def _cities_for(self, state: str) -> list[str]:
         return (self._locations or {}).get(state, [])
+
+    async def _async_available_fuels(self) -> list[str]:
+        """Combustíveis com preço no município escolhido; todos se falhar."""
+        if self._content is None or self._state is None or self._city is None:
+            return list(FUEL_TYPES)
+        try:
+            return await async_fuels_available(
+                self.hass, self._content, self._state, self._city
+            )
+        except Exception:  # noqa: BLE001 - não vale travar o fluxo por isto
+            _LOGGER.debug("Não foi possível apurar os combustíveis do município")
+            return list(FUEL_TYPES)
+
+    def _fuels_schema(self, options: list[str], default: list[str]) -> vol.Schema:
+        return vol.Schema(
+            {
+                vol.Required(CONF_FUELS, default=default): SelectSelector(
+                    SelectSelectorConfig(
+                        options=options,
+                        mode=SelectSelectorMode.LIST,
+                        multiple=True,
+                        custom_value=False,
+                    )
+                )
+            }
+        )
 
 
 class FuelPricesConfigFlow(LocationFlowMixin, ConfigFlow, domain=DOMAIN):
@@ -103,7 +146,8 @@ class FuelPricesConfigFlow(LocationFlowMixin, ConfigFlow, domain=DOMAIN):
         cities = self._cities_for(self._state)
 
         if user_input is not None:
-            return await self._async_create(self._state, user_input[CONF_CITY])
+            self._city = user_input[CONF_CITY]
+            return await self.async_step_fuels()
 
         default = DEFAULT_CITY if DEFAULT_CITY in cities else cities[0]
         return self.async_show_form(
@@ -112,6 +156,24 @@ class FuelPricesConfigFlow(LocationFlowMixin, ConfigFlow, domain=DOMAIN):
                 {vol.Required(CONF_CITY, default=default): _select(cities, default)}
             ),
             description_placeholders={"state": self._state},
+        )
+
+    async def async_step_fuels(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Escolhe quais combustíveis virarão sensores."""
+        assert self._state is not None and self._city is not None
+
+        if user_input is not None:
+            return await self._async_create(
+                self._state, self._city, user_input[CONF_FUELS]
+            )
+
+        disponiveis = await self._async_available_fuels()
+        return self.async_show_form(
+            step_id="fuels",
+            data_schema=self._fuels_schema(disponiveis, disponiveis),
+            description_placeholders={"city": self._city},
         )
 
     async def _async_step_manual(
@@ -125,7 +187,7 @@ class FuelPricesConfigFlow(LocationFlowMixin, ConfigFlow, domain=DOMAIN):
             if not state or not city:
                 errors["base"] = "invalid_location"
             else:
-                return await self._async_create(state, city)
+                return await self._async_create(state, city, list(FUEL_TYPES))
         elif error:
             errors["base"] = error
 
@@ -139,12 +201,14 @@ class FuelPricesConfigFlow(LocationFlowMixin, ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def _async_create(self, state: str, city: str) -> ConfigFlowResult:
+    async def _async_create(
+        self, state: str, city: str, fuels: list[str]
+    ) -> ConfigFlowResult:
         await self.async_set_unique_id(f"{state}_{city}")
         self._abort_if_unique_id_configured()
         return self.async_create_entry(
             title=f"{city.title()} ({state.title()})",
-            data={CONF_STATE: state, CONF_CITY: city},
+            data={CONF_STATE: state, CONF_CITY: city, CONF_FUELS: fuels},
         )
 
     @staticmethod
@@ -194,9 +258,8 @@ class OptionsFlowHandler(LocationFlowMixin, OptionsFlow):
         current = {**self.config_entry.data, **self.config_entry.options}
 
         if user_input is not None:
-            return self.async_create_entry(
-                data={CONF_STATE: self._state, CONF_CITY: user_input[CONF_CITY]}
-            )
+            self._city = user_input[CONF_CITY]
+            return await self.async_step_fuels()
 
         atual = current.get(CONF_CITY, DEFAULT_CITY)
         default = atual if atual in cities else cities[0]
@@ -206,6 +269,31 @@ class OptionsFlowHandler(LocationFlowMixin, OptionsFlow):
                 {vol.Required(CONF_CITY, default=default): _select(cities, default)}
             ),
             description_placeholders={"state": self._state},
+        )
+
+    async def async_step_fuels(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Escolhe quais combustíveis manter."""
+        assert self._state is not None and self._city is not None
+
+        if user_input is not None:
+            return self.async_create_entry(
+                data={
+                    CONF_STATE: self._state,
+                    CONF_CITY: self._city,
+                    CONF_FUELS: user_input[CONF_FUELS],
+                }
+            )
+
+        current = {**self.config_entry.data, **self.config_entry.options}
+        disponiveis = await self._async_available_fuels()
+        atuais = current.get(CONF_FUELS) or list(FUEL_TYPES)
+        default = [f for f in disponiveis if f in atuais] or disponiveis
+        return self.async_show_form(
+            step_id="fuels",
+            data_schema=self._fuels_schema(disponiveis, default),
+            description_placeholders={"city": self._city},
         )
 
     async def _async_step_manual(
@@ -223,7 +311,11 @@ class OptionsFlowHandler(LocationFlowMixin, OptionsFlow):
                 errors["base"] = "invalid_location"
             else:
                 return self.async_create_entry(
-                    data={CONF_STATE: state, CONF_CITY: city}
+                    data={
+                        CONF_STATE: state,
+                        CONF_CITY: city,
+                        CONF_FUELS: current.get(CONF_FUELS) or list(FUEL_TYPES),
+                    }
                 )
         elif error:
             errors["base"] = error

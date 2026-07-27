@@ -82,6 +82,16 @@ Contribuições são bem-vindas! Se você tiver sugestões, encontrar bugs ou de
 
 ## Changelog
 
+### v1.4.0
+
+- **Escolha quais combustíveis acompanhar.** Antes eram sempre os 7, gerando 21
+  entidades mesmo para quem só queria gasolina. O fluxo ganhou um terceiro
+  passo, e a lista já vem marcada com os combustíveis que a ANP realmente
+  publica para o município — nem todo lugar tem GNV, por exemplo.
+- Desmarcar um combustível **remove** as entidades dele do registro, em vez de
+  deixá-las órfãs e indisponíveis para sempre.
+- Quem já tinha a integração instalada continua com os 7, sem mudança.
+
 ### v1.3.0
 
 - **Estado e município viram listas de seleção.** Os dois campos eram texto

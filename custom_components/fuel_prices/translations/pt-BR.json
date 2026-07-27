@@ -15,6 +15,13 @@
         "data": {
           "city": "Município"
         }
+      },
+      "fuels": {
+        "title": "Combustíveis",
+        "description": "Escolha quais combustíveis virarão sensores em {city}. Cada um gera três sensores: mínimo, médio e máximo.",
+        "data": {
+          "fuels": "Combustíveis"
+        }
       }
     },
     "error": {
@@ -40,6 +47,13 @@
         "description": "Municípios pesquisados pela ANP em {state}.",
         "data": {
           "city": "Município"
+        }
+      },
+      "fuels": {
+        "title": "Combustíveis",
+        "description": "Escolha quais combustíveis virarão sensores em {city}. Cada um gera três sensores: mínimo, médio e máximo.",
+        "data": {
+          "fuels": "Combustíveis"
         }
       }
     },

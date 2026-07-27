@@ -88,3 +88,45 @@ def test_display_precision_follows_the_unit(unit: str, expected: int) -> None:
     from custom_components.fuel_prices.const import DEFAULT_PRECISION, PRECISION_BY_UNIT
 
     assert PRECISION_BY_UNIT.get(unit, DEFAULT_PRECISION) == expected
+
+
+class TestSelectedFuels:
+    """Escolha de combustíveis (v1.4.0)."""
+
+    @staticmethod
+    def _entry(data: dict, options: dict | None = None):
+        return type(
+            "Entry", (), {"data": data, "options": options or {}, "entry_id": "abc"}
+        )()
+
+    def test_missing_key_keeps_every_fuel(self) -> None:
+        """Instalações anteriores à v1.4.0 não têm a chave.
+
+        Se isto falhar, atualizar faria sensores desaparecerem sozinhos.
+        """
+        entry = self._entry({"city": "TUBARAO"})
+        assert coordinator.selected_fuels(entry) == list(FUEL_TYPES)
+
+    def test_empty_list_falls_back_to_every_fuel(self) -> None:
+        entry = self._entry({"fuels": []})
+        assert coordinator.selected_fuels(entry) == list(FUEL_TYPES)
+
+    def test_respects_the_selection(self) -> None:
+        entry = self._entry({"fuels": ["GASOLINA COMUM", "GLP"]})
+        assert coordinator.selected_fuels(entry) == ["GASOLINA COMUM", "GLP"]
+
+    def test_options_override_data(self) -> None:
+        entry = self._entry({"fuels": list(FUEL_TYPES)}, {"fuels": ["GNV"]})
+        assert coordinator.selected_fuels(entry) == ["GNV"]
+
+    def test_keeps_canonical_order_regardless_of_input(self) -> None:
+        entry = self._entry({"fuels": ["GLP", "ETANOL HIDRATADO", "GASOLINA COMUM"]})
+        assert coordinator.selected_fuels(entry) == [
+            "ETANOL HIDRATADO",
+            "GASOLINA COMUM",
+            "GLP",
+        ]
+
+    def test_ignores_unknown_fuel_names(self) -> None:
+        entry = self._entry({"fuels": ["GASOLINA COMUM", "QUEROSENE"]})
+        assert coordinator.selected_fuels(entry) == ["GASOLINA COMUM"]

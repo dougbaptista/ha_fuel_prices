@@ -15,6 +15,13 @@
         "data": {
           "city": "Municipality"
         }
+      },
+      "fuels": {
+        "title": "Fuels",
+        "description": "Pick which fuels to create sensors for in {city}. Each one produces three sensors: minimum, average and maximum.",
+        "data": {
+          "fuels": "Fuels"
+        }
       }
     },
     "error": {
@@ -40,6 +47,13 @@
         "description": "Municipalities surveyed by ANP in {state}.",
         "data": {
           "city": "Municipality"
+        }
+      },
+      "fuels": {
+        "title": "Fuels",
+        "description": "Pick which fuels to create sensors for in {city}. Each one produces three sensors: minimum, average and maximum.",
+        "data": {
+          "fuels": "Fuels"
         }
       }
     },

@@ -17,13 +17,12 @@ from .const import (
     DOMAIN,
     FALLBACK_UNITS,
     FUEL_ICONS,
-    FUEL_TYPES,
     MAX_DATA_AGE,
     PRECISION_BY_UNIT,
     PRICE_TYPE_NAMES,
     PRICE_TYPES,
 )
-from .coordinator import FuelPriceCoordinator
+from .coordinator import FuelPriceCoordinator, selected_fuels
 from .parser import make_unique_id
 
 
@@ -37,7 +36,7 @@ async def async_setup_entry(
 
     async_add_entities(
         FuelPriceSensor(coordinator, fuel, price_type)
-        for fuel in FUEL_TYPES
+        for fuel in selected_fuels(entry)
         for price_type in PRICE_TYPES
     )
 

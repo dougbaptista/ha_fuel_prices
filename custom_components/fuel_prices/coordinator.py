@@ -15,12 +15,14 @@ from homeassistant.util import dt as dt_util
 from .const import (
     BASE_URL,
     CONF_CITY,
+    CONF_FUELS,
     CONF_STATE,
     DEFAULT_CITY,
     DEFAULT_STATE,
     DOMAIN,
     DOWNLOAD_CHUNK_SIZE,
     DOWNLOAD_TIMEOUT,
+    FUEL_TYPES,
     MAX_DOWNLOAD_BYTES,
     PAGE_TIMEOUT,
     UPDATE_INTERVAL,
@@ -40,6 +42,18 @@ _LOGGER = logging.getLogger(__name__)
 def entry_config(entry: ConfigEntry) -> dict:
     """Configuração efetiva: opções sobrescrevem os dados iniciais."""
     return {**entry.data, **entry.options}
+
+
+def selected_fuels(entry: ConfigEntry) -> list[str]:
+    """Combustíveis escolhidos, preservando a ordem canônica.
+
+    Instalações anteriores à v1.4.0 não têm a chave: nesse caso valem todos,
+    para que atualizar não faça sensores desaparecerem.
+    """
+    escolhidos = entry_config(entry).get(CONF_FUELS)
+    if not escolhidos:
+        return list(FUEL_TYPES)
+    return [fuel for fuel in FUEL_TYPES if fuel in escolhidos]
 
 
 class FuelPriceCoordinator(DataUpdateCoordinator[dict]):
@@ -145,8 +159,24 @@ async def async_download(hass: HomeAssistant, url: str) -> bytes:
     return bytes(buffer)
 
 
+async def async_fetch_workbook(hass: HomeAssistant) -> bytes:
+    """Baixa a planilha semanal mais recente."""
+    url = await async_find_xls_url(hass)
+    return await async_download(hass, url)
+
+
 async def async_fetch_locations(hass: HomeAssistant) -> dict[str, list[str]]:
     """Devolve estado -> municípios pesquisados, para os seletores da UI."""
-    url = await async_find_xls_url(hass)
-    content = await async_download(hass, url)
+    content = await async_fetch_workbook(hass)
     return await hass.async_add_executor_job(list_locations, content)
+
+
+async def async_fuels_available(
+    hass: HomeAssistant, content: bytes, state: str, city: str
+) -> list[str]:
+    """Combustíveis com preço publicado no município, na ordem canônica.
+
+    Serve para pré-marcar o seletor: nem todo município tem GNV, por exemplo.
+    """
+    prices = await hass.async_add_executor_job(parse_workbook, content, state, city)
+    return [fuel for fuel in FUEL_TYPES if fuel in prices]

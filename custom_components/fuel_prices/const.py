@@ -10,6 +10,7 @@ PLATFORMS: Final = ["sensor"]
 
 CONF_STATE: Final = "state"
 CONF_CITY: Final = "city"
+CONF_FUELS: Final = "fuels"
 
 DEFAULT_STATE: Final = "SANTA CATARINA"
 DEFAULT_CITY: Final = "TUBARAO"
